@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>School Timetable Maker</title>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg1:#fdf2f8;--bg2:#eef2ff;--card:#ffffffcc;--ink:#3b3552;--mute:#7b7494;--line:#e6def5;--accent:#b8a1f0;--accent-ink:#3b2a6b;--ok:#d7f5e3;--warn:#fff1cf;--free:#faf7ff}
+:root[data-theme="dark"]{--bg1:#241d33;--bg2:#1b2233;--card:#2c2640cc;--ink:#ece7fa;--mute:#a59dc0;--line:#40395a;--accent:#7f68c4;--accent-ink:#fff;--ok:#24422f;--warn:#4a3d1a;--free:#272238}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg1:#241d33;--bg2:#1b2233;--card:#2c2640cc;--ink:#ece7fa;--mute:#a59dc0;--line:#40395a;--accent:#7f68c4;--accent-ink:#fff;--ok:#24422f;--warn:#4a3d1a;--free:#272238}}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;font-family:'Quicksand',system-ui,'Segoe UI',sans-serif;color:var(--ink);background:linear-gradient(135deg,var(--bg1),var(--bg2));min-height:100vh;padding:20px 16px 48px}
+.wrap{max-width:1100px;margin:0 auto}
+h1{font-size:30px;margin:4px 0 2px;letter-spacing:-.3px}
+.sub{color:var(--mute);margin:0 0 18px;font-weight:500}
+.card{background:var(--card);border:1.5px solid var(--line);border-radius:22px;padding:18px;margin-bottom:16px;backdrop-filter:blur(6px)}
+.drop{border:2px dashed var(--accent);border-radius:18px;padding:22px;text-align:center;cursor:pointer;background:var(--free)}
+.drop b{font-size:17px}.row2{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}.drop span.n{display:block;margin-top:6px;font-weight:700;color:var(--accent-ink);font-size:13px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button,select{font:inherit;font-weight:600;border-radius:14px;border:1.5px solid var(--line);padding:9px 16px;background:var(--card);color:var(--ink);cursor:pointer}
+button.pri{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+button:focus-visible,select:focus-visible,.drop:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button:disabled{opacity:.5;cursor:not-allowed}
+.tabs button.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.fmt{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+.fmt th,.fmt td{border:1px solid var(--line);padding:5px 8px;text-align:left}
+.fmt th{background:var(--free)}
+.scroll{overflow-x:auto}
+.msg{padding:10px 14px;border-radius:14px;margin:8px 0;font-size:14px;font-weight:600}
+.msg.ok{background:var(--ok)}.msg.warn{background:var(--warn)}
+.tt{border-collapse:separate;border-spacing:5px;width:100%;min-width:640px}
+.tt th{font-size:14px;padding:6px}
+.tt td{width:16%;height:62px;border-radius:14px;padding:6px 8px;font-size:13px;vertical-align:middle;line-height:1.25}
+.tt td.p{width:48px;background:none;text-align:center;font-weight:700;color:var(--mute)}
+.cell{background:hsl(var(--h) 75% 90%);color:hsl(var(--h) 38% 22%)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .cell{background:hsl(var(--h) 28% 26%);color:hsl(var(--h) 60% 90%)}}
+:root[data-theme="dark"] .cell{background:hsl(var(--h) 28% 26%);color:hsl(var(--h) 60% 90%)}
+.cell b{display:block;font-size:14px}.cell small{opacity:.8}
+.free{background:var(--free);border:1.5px dashed var(--line);color:var(--mute);text-align:center}
+.lunch td{height:24px!important;text-align:center;font-size:12px;color:var(--mute);background:none;letter-spacing:1px}
+.blk{border:1.5px solid var(--line);border-radius:16px;padding:10px;margin:8px 0;display:grid;gap:8px;background:var(--free)}.chip{font-size:13px;font-weight:600;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:3px 8px}input,textarea{font:inherit;border:1.5px solid var(--line);border-radius:12px;padding:7px 10px;background:var(--card);color:var(--ink)}
+.title{font-size:19px;font-weight:700;margin:0 0 8px}
+.pad{padding:6px 0 14px}
+.tt.m{min-width:0;width:auto;border-spacing:3px}.tt.m td{width:auto;min-width:68px;height:44px;padding:4px 5px;font-size:11px;border-radius:9px}.tt.m td b{font-size:11px}.tt.m th.sticky{position:sticky;left:0;z-index:2;background:var(--card);text-align:left;padding:6px 12px;min-width:92px;white-space:nowrap}.tt.m th.dh{background:var(--free);border-radius:9px}.tt.m th.ph{font-size:11px;color:var(--mute)}.tt.m .d1{border-left:3px solid var(--accent)}.tt.m td.na{background:none;color:var(--mute);text-align:center}
+@page{size:landscape}
+@media print{body{background:#fff}.noprint{display:none!important}.card{break-inside:avoid;border:none}}
+</style></head>
+<body><div class="wrap">
+<h1>School Timetable Maker</h1>
+<p class="sub">Upload your periods sheet and your teachers sheet to get class-wise and teacher-wise timetables.</p>
+
+<div class="card noprint">
+ <div class="row2">
+  <div class="drop" id="drop1" tabindex="0" role="button"><b>1. Periods per subject</b><br><span style="color:var(--mute)">Subjects down, sections across</span><span class="n" id="n1"></span></div>
+  <div class="drop" id="drop2" tabindex="0" role="button"><b>2. Teachers</b><br><span style="color:var(--mute)">Teacher, subjects, classes and sections</span><span class="n" id="n2"></span></div>
+ </div>
+ <input type="file" id="file1" accept=".xlsx,.xls" hidden><input type="file" id="file2" accept=".xlsx,.xls" hidden>
+ <div class="row" style="margin-top:12px">
+  <button id="sample">Load sample data</button>
+  <button class="pri" id="gen" disabled>Generate timetables</button>
+  <span id="status" style="color:var(--mute);font-weight:600"></span>
+ </div>
+ <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:700">What the two sheets should look like</summary>
+  <p style="font-size:13px;color:var(--mute)"><b>Sheet 1:</b> first column SUBJECT, then one column per section (I-A, I-B, or 1-A, 1-B; roman or normal numbers) with periods per week. Use “-” or leave blank when a subject isn’t taught. An optional row named “Class Teacher” can hold each section’s class teacher.</p>
+  <div class="scroll"><table class="fmt"><tr><th>Subject</th><th>Teacher</th><th>Classes &amp; sections</th><th>Class Teacher of (optional)</th></tr>
+  <tr><td>Maths</td><td>Nithya</td><td>V-A, V-B</td><td>V-A</td></tr>
+  <tr><td>Hindi</td><td>Hemavathi</td><td>III - V</td><td></td></tr></table></div>
+  <p style="font-size:13px;color:var(--mute)"><b>Sheet 2:</b> list sections with commas, a whole class by its number (“IV” is IV-A and IV-B) or a range (“III - V”). Subject names are matched loosely, so “AE” matches “AE/Drawing”. In the optional “Class Teacher of” column write the section, for example V-A (a bare “Yes” works only for a teacher with one section). If no class teachers are given, one is picked for each section and you can change it on the page. A class teacher gets Period 1 every day, using the subject they teach most in that section. If two teachers share a subject in a section, its periods are split between them.</p>
+ </details>
+</div>
+
+<div class="card noprint" id="setCard" style="display:none"><details><summary style="cursor:pointer;font-weight:700;font-size:17px">Settings: periods per day, parallel blocks, rules, school profile</summary><div id="setBody" style="margin-top:12px"></div></details></div>
+<div id="out" style="display:none">
+ <div class="card noprint">
+  <div class="row"><div class="tabs row"><button id="tClass" class="on">Class view</button><button id="tTeacher">Teacher view</button><button id="tMS">Section master</button><button id="tMT">Teacher master</button></div>
+  <select id="pick" aria-label="Choose"></select><button id="print">Print</button><button id="xls">Download Excel</button><button id="pdf">Download PDF</button><span id="dlmsg" style="color:var(--mute);font-weight:600"></span></div>
+  <div id="msgs"></div>
+  <details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700">Class teachers (they get Period 1)</summary><div class="row2" id="ctSel" style="margin-top:10px"></div></details>
+ </div>
+ <div id="views"></div>
+</div>
+</div>
+<script>
+const DAYS=['Mon','Tue','Wed','Thu','Fri'],NP=8;
+let SECS=[],RES=null,view='class';
+const $=id=>document.getElementById(id);
+const hue=s=>{let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))%360;return h};
+
+let W1=null,W2=null,LW=[];
+const norm=s=>String(s==null?'':s).toLowerCase().replace(/[^a-z0-9]/g,'');
+const splitList=s=>String(s).split(/[,;\n]+/).map(x=>x.trim()).filter(Boolean);
+function clsNum(t){t=String(t).trim().toUpperCase();if(/^\d+$/.test(t))return +t;if(!/^[IVX]+$/.test(t))return null;const R={I:1,V:5,X:10};let n=0;for(let i=0;i<t.length;i++){const v=R[t[i]],nx=R[t[i+1]]||0;n+=v<nx?-v:v}return n}
+
+function buildSections(grid){
+ const hdr=grid[0].slice(1).map(x=>String(x).trim());
+ const secs=hdr.map(k=>{if(!k)return null;const m=k.match(/^([A-Za-z0-9]+)\s*-\s*([A-Za-z0-9]+)$/);return {key:k,cls:m?clsNum(m[1]):null,sec:m?m[2].toUpperCase():null,lessons:[],ct:null,want:[]}});
+ grid.slice(1).forEach(r=>{
+  const subj=String(r[0]||'').trim();if(!subj)return;
+  if(norm(subj)==='classteacher'){hdr.forEach((k,i)=>{if(secs[i]&&String(r[i+1]).trim())secs[i].ct=String(r[i+1]).trim()});return}
+  hdr.forEach((k,i)=>{const n=parseInt(r[i+1]);if(secs[i]&&n>0)secs[i].want.push({subj,n})});
+ });
+ return secs.filter(Boolean);
+}
+
+function expand(text,secs,w,who){
+ const out=new Set();let lastC=null;
+ for(const m of String(text).matchAll(/([A-Za-z0-9]+)(?:\s*-\s*([A-Za-z0-9]+))?/g)){
+  const a=m[1],b=m[2];if(/^and$/i.test(a)&&!b)continue;
+  const ca=clsNum(a),cb=b?clsNum(b):null;let found=[];
+  if(b){
+   const direct=secs.filter(s=>s.cls===ca&&s.sec===b.toUpperCase());
+   if(direct.length){lastC=ca;found=direct}
+   else if(ca!=null&&cb!=null){lastC=null;found=secs.filter(s=>s.cls>=Math.min(ca,cb)&&s.cls<=Math.max(ca,cb))}
+  }else if(ca!=null){lastC=ca;found=secs.filter(s=>s.cls===ca)}
+  else if(/^[A-Za-z]$/.test(a)&&lastC!=null){found=secs.filter(s=>s.cls===lastC&&s.sec===a.toUpperCase())}
+  if(!found.length)w.push(who+': “'+m[0]+'” does not match any section in sheet 1.');
+  found.forEach(s=>out.add(s));
+ }
+ return [...out];
+}
+function autoCT(secs){
+ const taken=new Set(secs.map(s=>s.ct).filter(Boolean));const cand=[];
+ secs.filter(s=>!s.ct).forEach(s=>{const m={};
+  s.lessons.forEach(l=>{if(!l.teacher)return;const e=m[l.teacher]||(m[l.teacher]={mx:0,tot:0});e.mx=Math.max(e.mx,l.n);e.tot+=l.n});
+  for(const t in m)cand.push({s,t,sc:Math.min(m[t].mx,5)*100+m[t].tot})});
+ cand.sort((a,b)=>b.sc-a.sc);
+ cand.forEach(c=>{if(!c.s.ct&&!taken.has(c.t)){c.s.ct=c.t;taken.add(c.t)}});
+}
+function renderCT(){
+ $('ctSel').innerHTML=SECS.map((s,i)=>{const ts=[...new Set(s.lessons.map(l=>l.teacher).filter(Boolean))];
+  return '<label style="font-weight:600;font-size:14px">'+s.key+'<br><select data-i="'+i+'" style="width:100%"><option value="">None</option>'+ts.map(t=>'<option'+(t===s.ct?' selected':'')+'>'+t+'</option>').join('')+'</select></label>'}).join('');
+ $('ctSel').querySelectorAll('select').forEach(el=>el.onchange=()=>{const s=SECS[+el.dataset.i];s.ct=el.value||null;S.ct[s.key]=el.value;generate()});
+}
+
+function link(secs,rows){
+ const w=[];const asg=new Map();const canon=new Map();
+ secs.forEach(s=>s.want.forEach(x=>{const full=norm(x.subj);canon.set(full,full);x.subj.split('/').forEach(p=>{if(norm(p)&&!canon.has(norm(p)))canon.set(norm(p),full)})}));
+ let last='';const all={},yesT=new Set();
+ rows.forEach(r=>{
+  let name,subj,cls,ct;const ks=Object.keys(r);
+  ks.forEach(k=>{const n=norm(k);
+   if(n.includes('classteacher')||n.includes('incharge'))ct=r[k];
+   else if(n.includes('subject'))subj=r[k];
+   else if(n.includes('class')||n.includes('section'))cls=r[k];
+   else if(n.includes('teacher')||n.includes('name'))name=r[k];});
+  if(subj===undefined&&cls===undefined&&ks.length>=3){name=r[ks[0]];subj=r[ks[1]];cls=r[ks[2]];ct=r[ks[3]]}
+  name=String(name||'').trim()||last;if(!name||!String(subj||'').trim())return;last=name;
+  const targets=expand(cls,secs,w,name);
+  splitList(subj).forEach(sb=>{
+   const cn=canon.get(norm(sb));
+   if(!cn)w.push(name+': subject “'+sb+'” is not in sheet 1.');
+   targets.forEach(s=>{const k=s.key+'|'+(cn||norm(sb));if(!asg.has(k))asg.set(k,[]);if(!asg.get(k).includes(name))asg.get(k).push(name)});
+  });
+  (all[name]=all[name]||new Set());targets.forEach(s=>all[name].add(s));
+  const c=String(ct||'').trim();
+  if(/^(y|yes|true|x|1)$/i.test(c))yesT.add(name);
+  else if(c)expand(c,secs,w,name+' (class teacher)').forEach(s=>s.ct=name);
+ });
+ yesT.forEach(n=>{const a=[...all[n]];if(a.length===1)a[0].ct=n;else w.push(n+': “Yes” under Class Teacher is unclear because they teach '+a.length+' sections. Write the section name instead (for example V-A).')});
+ secs.forEach(s=>{
+  s.lessons=[];
+  s.want.forEach(({subj,n})=>{
+   const ts=asg.get(s.key+'|'+norm(subj))||[];
+   if(ts.length>1)w.push(s.key+' '+subj+' is listed for '+ts.join(' and ')+', so its periods are split between them.');
+   if(!ts.length){w.push(s.key+': no teacher found for '+subj+'.');s.lessons.push({subj,teacher:'',n});return}
+   const base=Math.floor(n/ts.length),ex=n%ts.length;
+   ts.forEach((t,i)=>{const c=base+(i<ex?1:0);if(c)s.lessons.push({subj,teacher:t,n:c})});
+  });
+ });
+ return w;
+}
+
+const defS=()=>({L:4,ppd:{},blocks:[],subjRules:[],tun:[],ct:{}});
+function applyCT(){SECS.forEach(s=>{if(S.ct[s.key]!==undefined)s.ct=S.ct[s.key]||null});renderCT()}
+let S=defS(),BL=[];
+const mk=n=>Array.from({length:5},()=>Array(n).fill(null));
+const ppdOf=s=>S.ppd[s.cls]??((s.cls!=null&&s.cls<=2)?7:8);
+function compile(){
+ BL=S.blocks.filter(b=>b.secs.length&&b.tracks.some(t=>t.subj)).map(b=>{
+  const secs=SECS.filter(s=>b.secs.includes(s.key));
+  const tracks=b.tracks.filter(t=>t.subj).map(t=>{const ex=String(t.secs||'').trim()?new Set(expand(t.secs,SECS,[],'').map(s=>s.key)):null;
+   return {subj:t.subj,teacher:t.teacher,keys:new Set(secs.filter(s=>!ex||ex.has(s.key)).map(s=>s.key))}});
+  return {label:b.name||tracks.map(t=>t.subj).join(' / '),n:b.n||1,secs,tracks,alt:b.mode==='alt'};
+ });
+ SECS.forEach(s=>{s.np=ppdOf(s);s.slots=5*s.np;
+  const mine=BL.map((b,i)=>[b,i]).filter(([b])=>b.secs.includes(s));
+  const drop=new Set();mine.forEach(([b])=>b.tracks.forEach(t=>drop.add(norm(t.subj))));
+  s.eff=s.lessons.filter(l=>!drop.has(norm(l.subj))).concat(mine.map(([b,i])=>({subj:b.label,teacher:'',block:i,n:b.n})));});
+}
+function validate(secs){
+ const w=[];const load={};const cts={};
+ secs.forEach(s=>{
+  const tot=s.eff.reduce((a,l)=>a+l.n,0);
+  if(tot>s.slots)w.push(s.key+' has '+tot+' periods but only '+s.slots+' slots a week.');
+  if(!s.ct)w.push(s.key+' has no class teacher, so Period 1 is not reserved.');else cts[s.ct]=(cts[s.ct]||0)+1;
+  s.eff.forEach(l=>{if(l.teacher)load[l.teacher]=(load[l.teacher]||0)+l.n});
+ });
+ BL.forEach(b=>b.tracks.forEach(t=>{if(!t.teacher)w.push('Block “'+b.label+'”: '+t.subj+' has no teacher.');else load[t.teacher]=(load[t.teacher]||0)+b.n}));
+ for(const t in load)if(load[t]>40)w.push(t+' is assigned '+load[t]+' periods, more than 40.');
+ for(const t in cts)if(cts[t]>1)w.push(t+' is class teacher of '+cts[t]+' sections, so Period 1 will clash.');
+ return w;
+}
+const okSlot=(subj,p,np)=>{const n=norm(subj);for(const r of S.subjRules)if(norm(r.subj)===n){if(r.rule==='am'&&p>=S.L)return false;if(r.rule==='pm'&&p<S.L)return false;if(r.rule==='no1'&&p===0)return false;if(r.rule==='first'&&p!==0)return false;if(r.rule==='last'&&p!==np-1)return false}return true};
+function attempt(){
+ const busy=new Set(),grid={},trem={},miss=[];
+ S.tun.forEach(u=>{for(let d=0;d<5;d++)if(u.day<0||u.day===d)for(let p=u.from-1;p<u.to;p++)busy.add(u.t+'|'+d+'|'+p)});
+ SECS.forEach(s=>{grid[s.key]=mk(s.np);s.rem=s.eff.map(l=>l.block!=null?0:l.n);s.eff.forEach(l=>{if(l.teacher)trem[l.teacher]=(trem[l.teacher]||0)+l.n})});
+ const free=(t,d,p)=>!t||!busy.has(t+'|'+d+'|'+p);
+ const runOK=(g,p,sub,np)=>{let r=1,q=p-1;while(q>=0&&g[q]&&g[q].subj===sub){r++;q--}q=p+1;while(q<np&&g[q]&&g[q].subj===sub){r++;q++}return r<=2};
+ const put=(s,d,p,i)=>{const l=s.eff[i];grid[s.key][d][p]={subj:l.subj,teacher:l.teacher,ct:p===0&&s.ct===l.teacher};
+  if(l.teacher)busy.add(l.teacher+'|'+d+'|'+p);s.rem[i]--;trem[l.teacher]--;};
+ SECS.forEach(s=>{if(!s.ct)return;let b=-1;
+  s.eff.forEach((l,i)=>{if(l.teacher===s.ct&&(b<0||l.n>s.eff[b].n))b=i});if(b<0)return;
+  for(let d=0;d<5;d++)if(s.rem[b]>0&&free(s.ct,d,0))put(s,d,0,b)});
+ BL.forEach(b=>{const days=[];
+  for(let k=0;k<b.n;k++){const c=[];
+   for(let d=0;d<5;d++)for(let p=0;p<8;p++){
+    if(b.secs.some(s=>p>=s.np||grid[s.key][d][p]||(p===0&&s.ct)))continue;
+    if(b.tracks.some(t=>!free(t.teacher,d,p)||b.secs.some(s=>!okSlot(t.subj,p,s.np))))continue;
+    if(b.secs.some(s=>!runOK(grid[s.key][d],p,b.label,s.np)))continue;
+    c.push([d,p,days.filter(x=>x===d).length*5+Math.random()*3]);}
+   if(!c.length){miss.push(b.label+': '+(b.n-k)+' short (no common free slot)');break}
+   c.sort((x,y)=>x[2]-y[2]);const [d,p]=c[0];days.push(d);
+   b.secs.forEach(s=>{const tr=b.tracks.filter(t=>t.keys.has(s.key));
+    grid[s.key][d][p]={subj:b.label,teacher:tr.map(t=>b.alt?t.teacher:t.subj+': '+t.teacher).join(b.alt?' / ':' | '),block:true,alt:b.alt,tracks:tr}});
+   b.tracks.forEach(t=>{if(t.teacher)busy.add(t.teacher+'|'+d+'|'+p)});
+  }});
+ SECS.forEach(s=>{
+  const F=Math.max(0,s.slots-s.eff.reduce((a,l)=>a+l.n,0)),L=Math.min(S.L,s.np);
+  const per=Array(5).fill(Math.floor(F/5));
+  [0,1,2,3,4].sort(()=>Math.random()-.5).slice(0,F%5).forEach(d=>per[d]++);
+  let flip=Math.random()<.5;
+  for(let d=0;d<5;d++){
+   const f=per[d];let mo=Math.floor(f/2),af=mo;if(f%2){if(flip)mo++;else af++;flip=!flip}
+   const g=grid[s.key][d];
+   const pick=(a,b,c)=>{const cand=[];for(let p=a;p<b;p++)if(!g[p])cand.push(p);cand.sort(()=>Math.random()-.5);let k=0;for(;k<c&&k<cand.length;k++)g[cand[k]]={free:true};return c-k};
+   const m1=pick(0,L,mo),m2=pick(L,s.np,af);if(m1)pick(L,s.np,m1);if(m2)pick(0,L,m2);
+  }
+ });
+ SECS.forEach(s=>{
+  const g=grid[s.key],np=s.np,cells=[];
+  for(let d=0;d<5;d++)for(let p=0;p<np;p++)if(!g[d][p])cells.push([d,p]);
+  cells.sort(()=>Math.random()-.5);
+  const cnt=Array.from({length:5},()=>({}));
+  g.forEach((row,d)=>row.forEach(c=>{if(c&&!c.free)cnt[d][c.subj]=(cnt[d][c.subj]||0)+1}));
+  for(const [d,p] of cells){let best=-1,bs=-1e9;
+   s.eff.forEach((l,i)=>{
+    if(s.rem[i]<=0||!free(l.teacher,d,p)||!okSlot(l.subj,p,np)||!runOK(g[d],p,l.subj,np))return;
+    const sc=s.rem[i]*2-(cnt[d][l.subj]||0)*5+(trem[l.teacher]||0)*.4+Math.random()*3;
+    if(sc>bs){bs=sc;best=i}});
+   if(best>=0){put(s,d,p,best);cnt[d][s.eff[best].subj]=(cnt[d][s.eff[best].subj]||0)+1}else g[d][p]={free:true};
+  }
+ });
+ let un=miss.length;
+ SECS.forEach(s=>s.rem.forEach((r,i)=>{if(r>0){un+=r;miss.push(s.key+' '+s.eff[i].subj+' ('+(s.eff[i].teacher||'no teacher')+'): '+r+' short')}}));
+ return {grid,un,miss};
+}
+function generate(){
+ compile();const t0=Date.now();let best=null;
+ for(let i=0;i<800&&Date.now()-t0<4000;i++){const r=attempt();if(!best||r.un<best.un)best=r;if(!r.un)break}
+ RES=best;const tt={},mx=Math.max(...SECS.map(s=>s.np));
+ SECS.forEach(s=>RES.grid[s.key].forEach((row,d)=>row.forEach((c,p)=>{
+  if(!c||c.free)return;
+  if(c.block){c.tracks.forEach(t=>{if(!t.teacher)return;const a=(tt[t.teacher]=tt[t.teacher]||mk(mx))[d][p];
+   if(a){if(!a.key.split(', ').includes(s.key))a.key+=', '+s.key}else tt[t.teacher][d][p]={subj:c.alt?c.subj:t.subj,key:s.key}});return}
+  if(!c.teacher)return;(tt[c.teacher]=tt[c.teacher]||mk(mx))[d][p]={subj:c.subj,key:s.key}})));
+ RES.tt=tt;$('out').style.display='block';
+ const w=LW.concat(validate(SECS));let h='';
+ h+=RES.un?'<div class="msg warn">Could not place '+RES.un+' period(s). Try Generate again or ease the load:<br>'+RES.miss.join('<br>')+'</div>':'<div class="msg ok">All periods placed with no teacher clashes.</div>';
+ w.forEach(x=>h+='<div class="msg warn">'+x+'</div>');
+ $('msgs').innerHTML=h;setView(view);
+}
+function table(cells,teacherMode,title,sub){
+ const np=cells[0].length;
+ let h='<div class="card pad"><div class="title">'+title+(sub?' <span style="color:var(--mute);font-size:14px;font-weight:600">'+sub+'</span>':'')+'</div><div class="scroll"><table class="tt"><tr><th></th>'+DAYS.map(d=>'<th>'+d+'</th>').join('')+'</tr>';
+ for(let p=0;p<np;p++){
+  if(p===S.L&&p<np)h+='<tr class="lunch"><td colspan="6">LUNCH BREAK</td></tr>';
+  h+='<tr><td class="p">P'+(p+1)+'</td>';
+  for(let d=0;d<5;d++){const c=cells[d][p];
+   if(!c||c.free)h+='<td class="free">Free</td>';
+   else if(teacherMode)h+='<td class="cell" style="--h:'+hue(c.subj)+'"><b>'+c.key+'</b><small>'+c.subj+'</small></td>';
+   else h+='<td class="cell" style="--h:'+hue(c.subj)+'"><b>'+c.subj+(c.ct?' ★':'')+'</b><small>'+(c.teacher||'No teacher')+'</small></td>';}
+  h+='</tr>';}
+ return h+'</table></div></div>';
+}
+const opt=(l,sel,blank)=>(blank?'<option value="">'+blank+'</option>':'')+l.map(x=>'<option'+(x===sel?' selected':'')+'>'+x+'</option>').join('');
+const togSec=(i,k,on)=>{const a=S.blocks[i].secs;if(on&&!a.includes(k))a.push(k);if(!on)S.blocks[i].secs=a.filter(x=>x!==k)};
+function renderSettings(){
+ $('setCard').style.display='block';
+ const cl=[...new Set(SECS.map(s=>s.cls))].sort((a,b)=>a-b);
+ const lab=c=>SECS.find(s=>s.cls===c).key.split('-')[0];
+ const subs=[...new Set(SECS.flatMap(s=>s.want.map(x=>x.subj)))];
+ const tch=[...new Set(SECS.flatMap(s=>s.lessons.map(l=>l.teacher)).filter(Boolean))].sort();
+ const sel=(a,v,h)=>'<select onchange="'+h+'">'+a+'</select>';
+ let h='<div class="title">Structure</div><div class="row">Lunch after period <input type="number" min="1" max="8" value="'+S.L+'" style="width:64px" onchange="S.L=+this.value">'
+  +cl.map(c=>'<label>Class '+lab(c)+' periods/day <input type="number" min="1" max="10" style="width:64px" value="'+(S.ppd[c]??(c<=2?7:8))+'" onchange="S.ppd['+c+']=+this.value"></label>').join('')+'</div>';
+ h+='<div class="title" style="margin-top:14px">Parallel blocks <span style="font-size:13px;color:var(--mute);font-weight:600">(subjects that run at the same time)</span></div>';
+ S.blocks.forEach((b,i)=>{
+  h+='<div class="blk"><div class="row"><input placeholder="Block name" value="'+b.name+'" onchange="S.blocks['+i+'].name=this.value"><select onchange="S.blocks['+i+'].mode=this.value;renderSettings()"><option value="par"'+(b.mode!=='alt'?' selected':'')+'>Parallel (same time)</option><option value="alt"'+(b.mode==='alt'?' selected':'')+'>Alternate weeks</option></select> Periods/week <input type="number" min="1" style="width:64px" value="'+b.n+'" onchange="S.blocks['+i+'].n=+this.value"><button onclick="S.blocks.splice('+i+',1);renderSettings()">Delete block</button></div><div class="row">'
+  +SECS.map(s=>'<label class="chip"><input type="checkbox" '+(b.secs.includes(s.key)?'checked':'')+' onchange="togSec('+i+',\''+s.key+'\',this.checked)"> '+s.key+'</label>').join('')+'</div>'
+  +b.tracks.map((t,j)=>'<div class="row"><select onchange="S.blocks['+i+'].tracks['+j+'].subj=this.value">'+opt(subs,t.subj,'Subject')+'</select><select onchange="S.blocks['+i+'].tracks['+j+'].teacher=this.value">'+opt(tch,t.teacher,'Teacher')+'</select><input placeholder="Sections it covers (blank = all ticked)" style="min-width:240px" value="'+(t.secs||'')+'" onchange="S.blocks['+i+'].tracks['+j+'].secs=this.value"><button aria-label="Remove track" onclick="S.blocks['+i+'].tracks.splice('+j+',1);renderSettings()">✕</button></div>').join('')
+  +'<button onclick="S.blocks['+i+'].tracks.push({subj:\'\',teacher:\'\',secs:\'\'});renderSettings()">+ Track</button></div>';});
+ h+='<button onclick="S.blocks.push({name:\'\',n:1,secs:[],tracks:[{subj:\'\',teacher:\'\',secs:\'\'},{subj:\'\',teacher:\'\',secs:\'\'}]});renderSettings()">+ Add block</button>';
+ h+='<div class="title" style="margin-top:14px">Subject rules</div>'+S.subjRules.map((r,i)=>'<div class="row"><select onchange="S.subjRules['+i+'].subj=this.value">'+opt(subs,r.subj,'Subject')+'</select><select onchange="S.subjRules['+i+'].rule=this.value"><option value="am"'+(r.rule==='am'?' selected':'')+'>Morning only</option><option value="pm"'+(r.rule==='pm'?' selected':'')+'>Afternoon only</option><option value="no1"'+(r.rule==='no1'?' selected':'')+'>Not Period 1</option><option value="first"'+(r.rule==='first'?' selected':'')+'>First period only</option><option value="last"'+(r.rule==='last'?' selected':'')+'>Last period only</option></select><button aria-label="Remove rule" onclick="S.subjRules.splice('+i+',1);renderSettings()">✕</button></div>').join('')
+  +'<button onclick="S.subjRules.push({subj:\'\',rule:\'am\'});renderSettings()">+ Subject rule</button>';
+ h+='<div class="title" style="margin-top:14px">Teacher unavailable</div>'+S.tun.map((u,i)=>'<div class="row"><select onchange="S.tun['+i+'].t=this.value">'+opt(tch,u.t,'Teacher')+'</select><select onchange="S.tun['+i+'].day=+this.value"><option value="-1">Every day</option>'+DAYS.map((d,k)=>'<option value="'+k+'"'+(u.day===k?' selected':'')+'>'+d+'</option>').join('')+'</select>periods <input type="number" min="1" max="10" style="width:64px" value="'+u.from+'" onchange="S.tun['+i+'].from=+this.value"> to <input type="number" min="1" max="10" style="width:64px" value="'+u.to+'" onchange="S.tun['+i+'].to=+this.value"><button aria-label="Remove" onclick="S.tun.splice('+i+',1);renderSettings()">✕</button></div>').join('')
+  +'<button onclick="S.tun.push({t:\'\',day:-1,from:1,to:8});renderSettings()">+ Unavailable slot</button>';
+ const P=profiles();
+ h+='<div class="title" style="margin-top:14px">School profile</div><div class="row"><input id="pname" placeholder="Profile name"><button onclick="saveProf()">Save</button><select id="plist"><option value="">Saved profiles</option>'+opt(Object.keys(P))+'</select><button onclick="loadProf($(\'plist\').value)">Load</button></div><div class="row" style="margin-top:8px"><textarea id="ptxt" rows="2" style="flex:1;min-width:220px" placeholder="Export text appears here; paste a saved export to restore"></textarea><button onclick="expo()">Export</button><button onclick="impo()">Import</button></div><p style="color:var(--mute);font-size:13px;margin:8px 0 0">After changing settings, press “Generate timetables” at the top.</p>';
+ $('setBody').innerHTML=h;
+}
+function profiles(){try{return JSON.parse(localStorage.getItem('tt_profiles')||'{}')}catch(e){return {}}}
+function saveProf(){const n=$('pname').value.trim();if(!n)return;try{const p=profiles();p[n]=S;localStorage.setItem('tt_profiles',JSON.stringify(p))}catch(e){}renderSettings()}
+function loadProf(n){const p=profiles()[n];if(p){S=Object.assign(defS(),p);applyCT();renderSettings()}}
+function expo(){$('ptxt').value=JSON.stringify(S)}
+function impo(){try{S=Object.assign(defS(),JSON.parse($('ptxt').value));applyCT();renderSettings()}catch(e){$('ptxt').value='That text is not a valid settings export.'}}
+
+const NPMAX=()=>Math.max(...SECS.map(s=>s.np));
+function masterRows(k){
+ const mx=NPMAX();
+ if(k==='s')return SECS.map(s=>({name:s.key,cells:DAYS.flatMap((_,d)=>Array.from({length:mx},(_,p)=>{
+  if(p>=s.np)return {na:true};const c=RES.grid[s.key][d][p];
+  return !c||c.free?{free:true}:{subj:c.subj,sub:c.teacher||'',h:hue(c.subj)}}))}));
+ return Object.keys(RES.tt).sort().map(t=>({name:t,cells:DAYS.flatMap((_,d)=>Array.from({length:mx},(_,p)=>{
+  const c=RES.tt[t][d][p];return c?{subj:c.key,sub:c.subj,h:hue(c.subj)}:{free:true}}))}));
+}
+function masterTable(k){
+ const rows=masterRows(k),mx=NPMAX();
+ let h='<div class="card pad"><div class="title">'+(k==='s'?'Section master':'Teacher master')+' <span style="color:var(--mute);font-size:14px;font-weight:600">all days, Monday P1 to Friday P'+mx+'</span></div><div class="scroll"><table class="tt m"><thead><tr><th class="sticky" rowspan="2">'+(k==='s'?'Section':'Teacher')+'</th>'
+ +DAYS.map(d=>'<th colspan="'+mx+'" class="dh">'+d+'</th>').join('')+'</tr><tr>'
+ +DAYS.map(()=>Array.from({length:mx},(_,p)=>'<th class="ph'+(p===0?' d1':'')+'">P'+(p+1)+'</th>').join('')).join('')+'</tr></thead><tbody>';
+ rows.forEach(r=>{h+='<tr><th class="sticky">'+r.name+'</th>'+r.cells.map((c,i)=>{const b=i%mx===0?' d1':'';
+  return c.na?'<td class="na'+b+'">–</td>':c.free?'<td class="free mc'+b+'">Free</td>':'<td class="cell mc'+b+'" style="--h:'+c.h+'"><b>'+c.subj+'</b><small>'+c.sub+'</small></td>'}).join('')+'</tr>'});
+ return h+'</tbody></table></div></div>';
+}
+function setView(v){
+ view=v;const M=v==='msec'||v==='mteach';$('pick').style.display=M?'none':'';
+ $('tClass').classList.toggle('on',v==='class');$('tTeacher').classList.toggle('on',v==='teacher');
+ $('tMS').classList.toggle('on',v==='msec');$('tMT').classList.toggle('on',v==='mteach');
+ if(!M){const names=v==='class'?SECS.map(s=>s.key):Object.keys(RES.tt).sort();const cur=$('pick').value;
+  $('pick').innerHTML='<option value="*">Show all</option>'+names.map(n=>'<option>'+n+'</option>').join('');
+  if(names.includes(cur))$('pick').value=cur;else $('pick').value=names[0]||'*';}
+ render();
+}
+function render(){
+ if(view==='msec'){$('views').innerHTML=masterTable('s');return}
+ if(view==='mteach'){$('views').innerHTML=masterTable('t');return}
+ const sel=$('pick').value;let h='';
+ if(view==='class'){
+  SECS.filter(s=>sel==='*'||s.key===sel).forEach(s=>{
+   const f=RES.grid[s.key].reduce((a,r)=>a+r.filter(c=>c&&c.free).length,0);
+   h+=table(RES.grid[s.key],false,'Class '+s.key,(s.ct?'Class teacher: '+s.ct+' · ':'')+f+' free periods');});
+ }else{
+  Object.keys(RES.tt).sort().filter(t=>sel==='*'||t===sel).forEach(t=>{
+   const n=RES.tt[t].reduce((a,r)=>a+r.filter(Boolean).length,0);
+   h+=table(RES.tt[t],true,t,n+' periods a week');});
+ }
+ $('views').innerHTML=h;
+}
+const cellTxt=c=>c.na?'':c.free?'Free':c.subj+(c.sub?'\n'+c.sub:'');
+async function dl(name,data){
+ $('dlmsg').textContent='';
+ try{const d=(typeof claude!=='undefined')?await claude.use('downloads'):null;
+  if(!d){const b=data instanceof Blob?data:new Blob([data],{type:'application/octet-stream'});
+   const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);return}
+  await d.save({filename:name,data})}
+ catch(e){if(!e||e.code!=='declined')$('dlmsg').textContent='Could not save the file ('+((e&&e.code)||'error')+').'}
+}
+function exportXLSX(){
+ if(!RES||!window.XLSX)return;const wb=XLSX.utils.book_new(),mx=NPMAX();
+ [['s','Section master'],['t','Teacher master']].forEach(([k,n])=>{
+  const h1=[k==='s'?'Section':'Teacher'],h2=[''];
+  DAYS.forEach(d=>{for(let p=0;p<mx;p++){h1.push(p===0?d:'');h2.push('P'+(p+1))}});
+  const ws=XLSX.utils.aoa_to_sheet([h1,h2].concat(masterRows(k).map(r=>[r.name].concat(r.cells.map(cellTxt)))));
+  ws['!merges']=DAYS.map((d,i)=>({s:{r:0,c:1+i*mx},e:{r:0,c:(i+1)*mx}})).concat([{s:{r:0,c:0},e:{r:1,c:0}}]);
+  ws['!cols']=[{wch:18}].concat(Array(mx*5).fill({wch:14}));
+  XLSX.utils.book_append_sheet(wb,ws,n)});
+ dl('timetable-master.xlsx',new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})]));
+}
+const hsl=(h,s,l)=>{s/=100;l/=100;const a=s*Math.min(l,1-l),f=n=>{const k=(n+h/30)%12;return Math.round(255*(l-a*Math.max(-1,Math.min(k-3,9-k,1))))};return [f(0),f(8),f(4)]};
+function exportPDF(){
+ if(!RES||!window.jspdf)return;
+ const k=(view==='teacher'||view==='mteach')?'t':'s',mx=NPMAX(),rows=masterRows(k);
+ const doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a3'});
+ doc.setFontSize(14);doc.text((k==='s'?'Section':'Teacher')+' master timetable',6,9);
+ const h2=[];DAYS.forEach(()=>{for(let p=0;p<mx;p++)h2.push('P'+(p+1))});
+ doc.autoTable({startY:12,margin:{left:6,right:6},
+  head:[[{content:k==='s'?'Section':'Teacher',rowSpan:2}].concat(DAYS.map(d=>({content:d,colSpan:mx,styles:{halign:'center'}}))),h2],
+  body:rows.map(r=>[r.name].concat(r.cells.map(cellTxt))),
+  styles:{fontSize:3.6,cellPadding:.6,overflow:'linebreak',halign:'center',valign:'middle',textColor:[59,53,82],lineColor:[230,222,245],lineWidth:.1},
+  headStyles:{fillColor:[184,161,240],textColor:255},
+  columnStyles:{0:{halign:'left',fontStyle:'bold',cellWidth:20}},
+  didParseCell:d=>{if(d.section==='body'&&d.column.index>0){const c=rows[d.row.index].cells[d.column.index-1];
+   d.cell.styles.fillColor=c.h!=null?hsl(c.h,75,90):c.free?[250,247,255]:[255,255,255]}}});
+ dl((k==='s'?'section':'teacher')+'-master.pdf',doc.output('arraybuffer'));
+}
+function tryBuild(){
+ if(!W1){$('status').textContent='Add the periods sheet to continue.';return}
+ if(!W2){$('status').textContent='Add the teachers sheet to continue.';return}
+ const secs=buildSections(W1);
+ if(!secs.length){$('status').textContent='No sections found. Section names should be in the first row of sheet 1.';return}
+ LW=link(secs,W2);secs.forEach(s=>{if(S.ct[s.key])s.ct=S.ct[s.key]});const auto=secs.filter(s=>!s.ct).length;autoCT(secs);
+ if(auto)LW.push('No class teachers were given for '+auto+' sections, so I picked one per section (the teacher with the most periods in it). You can change them under “Class teachers”.');
+ SECS=secs;renderCT();renderSettings();$('gen').disabled=false;
+ $('status').textContent=SECS.length+' sections loaded';
+ generate();
+}
+function readFile(f,slot){
+ const fr=new FileReader();
+ fr.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:'array'});const S=i=>wb.Sheets[wb.SheetNames[i]];
+  if(slot===1){W1=XLSX.utils.sheet_to_json(S(0),{header:1,defval:''});
+   if(wb.SheetNames.length>1&&!W2){W2=XLSX.utils.sheet_to_json(S(1),{defval:''});$('n2').textContent='Sheet 2 of '+f.name}}
+  else W2=XLSX.utils.sheet_to_json(S(0),{defval:''});
+  $('n'+slot).textContent=f.name;tryBuild()}catch(x){$('status').textContent='Could not read that file.'}};
+ fr.readAsArrayBuffer(f);
+}
+function sample(){
+ const T=`SUBJECT|1-A|1-B|2-A|2-B|3-A|3-B|3-C|4-A|4-B|5-A|5-B|5-C
+Maths|7|7|7|7|6|6|6|6|6|6|6|6
+English|7|7|7|7|5|5|5|5|5|5|5|5
+Language|6|6|6|6|5|5|5|5|5|5|5|5
+Science|-|-|-|-|6|6|6|5|5|5|5|5
+Social|-|-|-|-|6|6|6|5|5|5|5|5
+EVS|7|7|7|7|-|-|-|-|-|-|-|-
+Hand writing|1|1|1|1|-|-|-|-|-|-|-|-
+Value Edn.|1|1|1|1|1|1|1|1|1|1|1|1
+AE/Drawing|1|1|1|1|1|1|1|1|1|1|1|1
+Hindi|-|-|-|-|2|2|2|2|2|2|2|2
+Cambridge Eng.|-|-|-|-|2|2|2|2|2|2|2|2
+Math Lab|-|-|-|-|-|-|-|1|1|1|1|1
+Science Lab|-|-|-|-|-|-|-|1|1|1|1|1
+Reading|1|1|1|1|1|1|1|1|1|1|1|1
+Library|-|-|-|-|1|1|1|1|1|1|1|1
+Comp.Sci.|2|2|2|2|2|2|2|2|2|2|2|2
+PT|2|2|2|2|2|2|2|2|2|2|2|2`;
+ W1=T.split('\n').map(l=>l.split('|'));
+ const hd=W1[0].slice(1),chunk=(a,k)=>{const o=[];for(let i=0;i<a.length;i+=k)o.push(a.slice(i,i+k));return o};
+ W2=[];
+ W1.slice(1).forEach(r=>{const sb=r[0],act=hd.filter((s,i)=>parseInt(r[i+1])>0);
+  const heavy=['Maths','English','Language'].includes(sb),mid=['Science','Social','EVS'].includes(sb);
+  const groups=heavy?chunk(act,2):mid?chunk(act,sb==='EVS'?2:3):[act];
+  groups.forEach((g,i)=>W2.push({Teacher:heavy||mid?sb+' Teacher '+(i+1):sb+' Teacher','Subject':sb,'Classes & Sections':g.join(', '),
+   'Class Teacher':sb==='Maths'?g[0]:sb==='English'?(g[1]||''):''}))});
+ $('n1').textContent='Sample periods';$('n2').textContent='Sample teachers';tryBuild();
+}
+[1,2].forEach(n=>{const d=$('drop'+n),f=$('file'+n);
+ d.onclick=()=>f.click();
+ d.onkeydown=e=>{if(e.key==='Enter'||e.key===' ')f.click()};
+ d.ondragover=e=>e.preventDefault();
+ d.ondrop=e=>{e.preventDefault();if(e.dataTransfer.files[0])readFile(e.dataTransfer.files[0],n)};
+ f.onchange=e=>{if(e.target.files[0])readFile(e.target.files[0],n)};});
+$('sample').onclick=sample;$('gen').onclick=generate;
+$('tClass').onclick=()=>setView('class');$('tTeacher').onclick=()=>setView('teacher');
+$('pick').onchange=render;$('tMS').onclick=()=>setView('msec');$('tMT').onclick=()=>setView('mteach');$('xls').onclick=exportXLSX;$('pdf').onclick=exportPDF;$('print').onclick=()=>window.print();
+</script></body></html>
