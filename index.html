@@ -39,6 +39,8 @@ button:disabled{opacity:.5;cursor:not-allowed}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .cell{background:hsl(var(--h) 28% 26%);color:hsl(var(--h) 60% 90%)}}
 :root[data-theme="dark"] .cell{background:hsl(var(--h) 28% 26%);color:hsl(var(--h) 60% 90%)}
 .cell b{display:block;font-size:14px}.cell small{opacity:.8}
+.unp{background:hsl(0 80% 91%);color:hsl(0 45% 28%);text-align:center;border:1.5px dashed hsl(0 60% 65%)}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .unp{background:hsl(0 35% 28%);color:hsl(0 70% 90%)}}:root[data-theme="dark"] .unp{background:hsl(0 35% 28%);color:hsl(0 70% 90%)}
+.badc{outline:2px solid hsl(0 70% 50%)}
 .free{background:var(--free);border:1.5px dashed var(--line);color:var(--mute);text-align:center}
 .lunch td{height:24px!important;text-align:center;font-size:12px;color:var(--mute);background:none;letter-spacing:1px}
 .blk{border:1.5px solid var(--line);border-radius:16px;padding:10px;margin:8px 0;display:grid;gap:8px;background:var(--free)}.chip{font-size:13px;font-weight:600;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:3px 8px}input,textarea{font:inherit;border:1.5px solid var(--line);border-radius:12px;padding:7px 10px;background:var(--card);color:var(--ink)}
@@ -60,7 +62,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
  <input type="file" id="file1" accept=".xlsx,.xls" hidden><input type="file" id="file2" accept=".xlsx,.xls" hidden>
  <div class="row" style="margin-top:12px">
   <button id="sample">Load sample data</button>
-  <button class="pri" id="gen" disabled>Generate timetables</button>
+  <button class="pri" id="gen" disabled>Generate timetables</button><button id="stop" style="display:none">Stop and use best</button>
   <span id="status" style="color:var(--mute);font-weight:600"></span>
  </div>
  <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:700">What the two sheets should look like</summary>
@@ -89,16 +91,17 @@ let SECS=[],RES=null,view='class';
 const $=id=>document.getElementById(id);
 const hue=s=>{let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))%360;return h};
 
-let W1=null,W2=null,LW=[];
+let W1=null,W2=null,LW=[],ALLSUBJ=[],ALLT=new Set();
 const norm=s=>String(s==null?'':s).toLowerCase().replace(/[^a-z0-9]/g,'');
 const splitList=s=>String(s).split(/[,;\n]+/).map(x=>x.trim()).filter(Boolean);
 function clsNum(t){t=String(t).trim().toUpperCase();if(/^\d+$/.test(t))return +t;if(!/^[IVX]+$/.test(t))return null;const R={I:1,V:5,X:10};let n=0;for(let i=0;i<t.length;i++){const v=R[t[i]],nx=R[t[i+1]]||0;n+=v<nx?-v:v}return n}
 
 function buildSections(grid){
- const hdr=grid[0].slice(1).map(x=>String(x).trim());
+ let hi=grid.findIndex(r=>norm(r[0])==='subject');if(hi<0)hi=0;ALLSUBJ=[];
+ const hdr=grid[hi].slice(1).map(x=>String(x).trim());
  const secs=hdr.map(k=>{if(!k)return null;const m=k.match(/^([A-Za-z0-9]+)\s*-\s*([A-Za-z0-9]+)$/);return {key:k,cls:m?clsNum(m[1]):null,sec:m?m[2].toUpperCase():null,lessons:[],ct:null,want:[]}});
- grid.slice(1).forEach(r=>{
-  const subj=String(r[0]||'').trim();if(!subj)return;
+ grid.slice(hi+1).forEach(r=>{
+  const subj=String(r[0]||'').trim();if(!subj||norm(subj)==='total')return;if(norm(subj)!=='classteacher')ALLSUBJ.push(subj);
   if(norm(subj)==='classteacher'){hdr.forEach((k,i)=>{if(secs[i]&&String(r[i+1]).trim())secs[i].ct=String(r[i+1]).trim()});return}
   hdr.forEach((k,i)=>{const n=parseInt(r[i+1]);if(secs[i]&&n>0)secs[i].want.push({subj,n})});
  });
@@ -137,8 +140,8 @@ function renderCT(){
 
 function link(secs,rows){
  const w=[];const asg=new Map();const canon=new Map();
- secs.forEach(s=>s.want.forEach(x=>{const full=norm(x.subj);canon.set(full,full);x.subj.split('/').forEach(p=>{if(norm(p)&&!canon.has(norm(p)))canon.set(norm(p),full)})}));
- let last='';const all={},yesT=new Set();
+ ALLSUBJ.forEach(sb=>{const full=norm(sb);canon.set(full,full);sb.split('/').forEach(p=>{if(norm(p)&&!canon.has(norm(p)))canon.set(norm(p),full)})});
+ let last='';const all={},yesT=new Set();ALLT=new Set();
  rows.forEach(r=>{
   let name,subj,cls,ct;const ks=Object.keys(r);
   ks.forEach(k=>{const n=norm(k);
@@ -147,17 +150,17 @@ function link(secs,rows){
    else if(n.includes('class')||n.includes('section'))cls=r[k];
    else if(n.includes('teacher')||n.includes('name'))name=r[k];});
   if(subj===undefined&&cls===undefined&&ks.length>=3){name=r[ks[0]];subj=r[ks[1]];cls=r[ks[2]];ct=r[ks[3]]}
-  name=String(name||'').trim()||last;if(!name||!String(subj||'').trim())return;last=name;
+  name=String(name||'').trim()||last;if(!name||!String(subj||'').trim())return;last=name;const PH=/^(x|-|tbd|na|n\/a|none|nil|\?)$/i.test(name),nm=PH?'':name;if(!PH)ALLT.add(name);
   const targets=expand(cls,secs,w,name);
   splitList(subj).forEach(sb=>{
    const cn=canon.get(norm(sb));
    if(!cn)w.push(name+': subject “'+sb+'” is not in sheet 1.');
-   targets.forEach(s=>{const k=s.key+'|'+(cn||norm(sb));if(!asg.has(k))asg.set(k,[]);if(!asg.get(k).includes(name))asg.get(k).push(name)});
+   targets.forEach(s=>{const k=s.key+'|'+(cn||norm(sb));if(!asg.has(k))asg.set(k,[]);if(!asg.get(k).includes(nm))asg.get(k).push(nm)});
   });
   (all[name]=all[name]||new Set());targets.forEach(s=>all[name].add(s));
   const c=String(ct||'').trim();
   if(/^(y|yes|true|x|1)$/i.test(c))yesT.add(name);
-  else if(c)expand(c,secs,w,name+' (class teacher)').forEach(s=>s.ct=name);
+  else if(c)expand(c,secs,w,name+' (class teacher)').forEach(s=>{if(s.ct&&s.ct!==name)w.push(s.key+' has two class teachers listed ('+s.ct+' and '+name+'); using '+name+'.');s.ct=name});
  });
  yesT.forEach(n=>{const a=[...all[n]];if(a.length===1)a[0].ct=n;else w.push(n+': “Yes” under Class Teacher is unclear because they teach '+a.length+' sections. Write the section name instead (for example V-A).')});
  secs.forEach(s=>{
@@ -170,25 +173,28 @@ function link(secs,rows){
    ts.forEach((t,i)=>{const c=base+(i<ex?1:0);if(c)s.lessons.push({subj,teacher:t,n:c})});
   });
  });
+ secs.forEach(s=>{if(s.ct&&!s.lessons.some(l=>l.teacher===s.ct))w.push(s.key+': '+s.ct+' is listed as class teacher but does not teach there, so Period 1 cannot be reserved.')});
  return w;
 }
 
-const defS=()=>({L:4,ppd:{},blocks:[],subjRules:[],tun:[],ct:{}});
+const defS=()=>({L:4,tl:120,ppd:{},blocks:[],subjRules:[],tun:[],ct:{}});
 function applyCT(){SECS.forEach(s=>{if(S.ct[s.key]!==undefined)s.ct=S.ct[s.key]||null});renderCT()}
 let S=defS(),BL=[];
 const mk=n=>Array.from({length:5},()=>Array(n).fill(null));
 const ppdOf=s=>S.ppd[s.cls]??((s.cls!=null&&s.cls<=2)?7:8);
 function compile(){
- BL=S.blocks.filter(b=>b.secs.length&&b.tracks.some(t=>t.subj)).map(b=>{
+ BL=S.blocks.filter(b=>b.secs.length&&b.tracks.some(t=>t.subj)).flatMap(b=>{
   const secs=SECS.filter(s=>b.secs.includes(s.key));
   const tracks=b.tracks.filter(t=>t.subj).map(t=>{const ex=String(t.secs||'').trim()?new Set(expand(t.secs,SECS,[],'').map(s=>s.key)):null;
    return {subj:t.subj,teacher:t.teacher,keys:new Set(secs.filter(s=>!ex||ex.has(s.key)).map(s=>s.key))}});
-  return {label:b.name||tracks.map(t=>t.subj).join(' / '),n:b.n||1,secs,tracks,alt:b.mode==='alt'};
+  const mkB=(ss,tr)=>({label:b.name||tr.map(t=>t.subj).join(' / '),n:b.n||1,secs:ss,tracks:tr,alt:b.mode==='alt'});
+  if(b.each)return secs.map(s=>mkB([s],tracks.filter(t=>t.keys.has(s.key)))).filter(x=>x.tracks.length);
+  return [mkB(secs,tracks)];
  });
  SECS.forEach(s=>{s.np=ppdOf(s);s.slots=5*s.np;
   const mine=BL.map((b,i)=>[b,i]).filter(([b])=>b.secs.includes(s));
   const drop=new Set();mine.forEach(([b])=>b.tracks.forEach(t=>drop.add(norm(t.subj))));
-  s.eff=s.lessons.filter(l=>!drop.has(norm(l.subj))).concat(mine.map(([b,i])=>({subj:b.label,teacher:'',block:i,n:b.n})));});
+  s.eff=s.lessons.filter(l=>!drop.has(norm(l.subj))).map(l=>Object.assign({},l)).concat(mine.map(([b,i])=>({subj:b.label,teacher:'',block:i,n:b.n})));});
 }
 function validate(secs){
  const w=[];const load={};const cts={};
@@ -200,76 +206,155 @@ function validate(secs){
  });
  BL.forEach(b=>b.tracks.forEach(t=>{if(!t.teacher)w.push('Block “'+b.label+'”: '+t.subj+' has no teacher.');else load[t.teacher]=(load[t.teacher]||0)+b.n}));
  for(const t in load)if(load[t]>40)w.push(t+' is assigned '+load[t]+' periods, more than 40.');
+ S.blocks.forEach(b=>{const subs=b.tracks.filter(t=>t.subj).map(t=>norm(t.subj));b.secs.forEach(k=>{const s=secs.find(x=>x.key===k);if(s&&!s.want.some(x=>subs.includes(norm(x.subj))))w.push('Block “'+(b.name||'unnamed')+'”: '+k+' is ticked but has none of its subjects in the Periods sheet.')})});
  for(const t in cts)if(cts[t]>1)w.push(t+' is class teacher of '+cts[t]+' sections, so Period 1 will clash.');
  return w;
 }
 const okSlot=(subj,p,np)=>{const n=norm(subj);for(const r of S.subjRules)if(norm(r.subj)===n){if(r.rule==='am'&&p>=S.L)return false;if(r.rule==='pm'&&p<S.L)return false;if(r.rule==='no1'&&p===0)return false;if(r.rule==='first'&&p!==0)return false;if(r.rule==='last'&&p!==np-1)return false}return true};
-function attempt(){
- const busy=new Set(),grid={},trem={},miss=[];
- S.tun.forEach(u=>{for(let d=0;d<5;d++)if(u.day<0||u.day===d)for(let p=u.from-1;p<u.to;p++)busy.add(u.t+'|'+d+'|'+p)});
- SECS.forEach(s=>{grid[s.key]=mk(s.np);s.rem=s.eff.map(l=>l.block!=null?0:l.n);s.eff.forEach(l=>{if(l.teacher)trem[l.teacher]=(trem[l.teacher]||0)+l.n})});
- const free=(t,d,p)=>!t||!busy.has(t+'|'+d+'|'+p);
- const runOK=(g,p,sub,np)=>{let r=1,q=p-1;while(q>=0&&g[q]&&g[q].subj===sub){r++;q--}q=p+1;while(q<np&&g[q]&&g[q].subj===sub){r++;q++}return r<=2};
- const put=(s,d,p,i)=>{const l=s.eff[i];grid[s.key][d][p]={subj:l.subj,teacher:l.teacher,ct:p===0&&s.ct===l.teacher};
-  if(l.teacher)busy.add(l.teacher+'|'+d+'|'+p);s.rem[i]--;trem[l.teacher]--;};
- SECS.forEach(s=>{if(!s.ct)return;let b=-1;
-  s.eff.forEach((l,i)=>{if(l.teacher===s.ct&&(b<0||l.n>s.eff[b].n))b=i});if(b<0)return;
-  for(let d=0;d<5;d++)if(s.rem[b]>0&&free(s.ct,d,0))put(s,d,0,b)});
- BL.forEach(b=>{const days=[];
-  for(let k=0;k<b.n;k++){const c=[];
-   for(let d=0;d<5;d++)for(let p=0;p<8;p++){
-    if(b.secs.some(s=>p>=s.np||grid[s.key][d][p]||(p===0&&s.ct)))continue;
-    if(b.tracks.some(t=>!free(t.teacher,d,p)||b.secs.some(s=>!okSlot(t.subj,p,s.np))))continue;
-    if(b.secs.some(s=>!runOK(grid[s.key][d],p,b.label,s.np)))continue;
-    c.push([d,p,days.filter(x=>x===d).length*5+Math.random()*3]);}
-   if(!c.length){miss.push(b.label+': '+(b.n-k)+' short (no common free slot)');break}
-   c.sort((x,y)=>x[2]-y[2]);const [d,p]=c[0];days.push(d);
-   b.secs.forEach(s=>{const tr=b.tracks.filter(t=>t.keys.has(s.key));
-    grid[s.key][d][p]={subj:b.label,teacher:tr.map(t=>b.alt?t.teacher:t.subj+': '+t.teacher).join(b.alt?' / ':' | '),block:true,alt:b.alt,tracks:tr}});
-   b.tracks.forEach(t=>{if(t.teacher)busy.add(t.teacher+'|'+d+'|'+p)});
-  }});
- SECS.forEach(s=>{
-  const F=Math.max(0,s.slots-s.eff.reduce((a,l)=>a+l.n,0)),L=Math.min(S.L,s.np);
-  const per=Array(5).fill(Math.floor(F/5));
-  [0,1,2,3,4].sort(()=>Math.random()-.5).slice(0,F%5).forEach(d=>per[d]++);
-  let flip=Math.random()<.5;
-  for(let d=0;d<5;d++){
-   const f=per[d];let mo=Math.floor(f/2),af=mo;if(f%2){if(flip)mo++;else af++;flip=!flip}
-   const g=grid[s.key][d];
-   const pick=(a,b,c)=>{const cand=[];for(let p=a;p<b;p++)if(!g[p])cand.push(p);cand.sort(()=>Math.random()-.5);let k=0;for(;k<c&&k<cand.length;k++)g[cand[k]]={free:true};return c-k};
-   const m1=pick(0,L,mo),m2=pick(L,s.np,af);if(m1)pick(L,s.np,m1);if(m2)pick(0,L,m2);
-  }
- });
- SECS.forEach(s=>{
-  const g=grid[s.key],np=s.np,cells=[];
-  for(let d=0;d<5;d++)for(let p=0;p<np;p++)if(!g[d][p])cells.push([d,p]);
-  cells.sort(()=>Math.random()-.5);
-  const cnt=Array.from({length:5},()=>({}));
-  g.forEach((row,d)=>row.forEach(c=>{if(c&&!c.free)cnt[d][c.subj]=(cnt[d][c.subj]||0)+1}));
-  for(const [d,p] of cells){let best=-1,bs=-1e9;
-   s.eff.forEach((l,i)=>{
-    if(s.rem[i]<=0||!free(l.teacher,d,p)||!okSlot(l.subj,p,np)||!runOK(g[d],p,l.subj,np))return;
-    const sc=s.rem[i]*2-(cnt[d][l.subj]||0)*5+(trem[l.teacher]||0)*.4+Math.random()*3;
-    if(sc>bs){bs=sc;best=i}});
-   if(best>=0){put(s,d,p,best);cnt[d][s.eff[best].subj]=(cnt[d][s.eff[best].subj]||0)+1}else g[d][p]={free:true};
-  }
- });
- let un=miss.length;
- SECS.forEach(s=>s.rem.forEach((r,i)=>{if(r>0){un+=r;miss.push(s.key+' '+s.eff[i].subj+' ('+(s.eff[i].teacher||'no teacher')+'): '+r+' short')}}));
- return {grid,un,miss};
+let PREP=null,STOP=false;
+const okR=(rs,p,np)=>{for(const r of rs){if(r==='am'&&p>=S.L)return false;if(r==='pm'&&p<S.L)return false;if(r==='no1'&&p===0)return false;if(r==='first'&&p!==0)return false;if(r==='last'&&p!==np-1)return false}return true};
+function prepare(){
+ const ids={},names=[];let nid=0;const tid=t=>t?(ids[t]!==undefined?ids[t]:(names.push(t),ids[t]=nid++)):-1;const notes=[];
+ SECS.forEach(s=>{s.after=[];s.ctI=-1;s.ctN=0;
+  s.eff.forEach((l,i)=>{l.tid=tid(l.teacher);l.rules=S.subjRules.filter(r=>norm(r.subj)===norm(l.subj)).map(r=>r.rule);
+   if(l.block==null&&s.ct&&l.teacher===s.ct&&l.n>s.ctN){s.ctI=i;s.ctN=l.n}});
+  s.lt=[];s.needLast=0;s.needFirst=0;s.eff.forEach(l=>{if(l.block==null){if(l.tid>=0&&S.tun.some(u=>u.t===l.teacher))s.lt.push([l.tid,l.n]);if(l.rules.includes('last'))s.needLast+=l.n;if(l.rules.includes('first'))s.needFirst+=l.n}})});
+ BL.forEach(b=>b.tracks.forEach(t=>t.tid=tid(t.teacher)));
+ S.tun.forEach(u=>tid(u.t));
+ const un=new Set();S.tun.forEach(u=>{if(!u.t)return;const t=tid(u.t);for(let d=0;d<5;d++)if(u.day<0||u.day===d)for(let p=u.from-1;p<u.to;p++)un.add(t*50+d*10+p)});
+ const load={},mxs={};
+ const touch=(t,n,np)=>{if(t<0)return;load[t]=(load[t]||0)+n;mxs[t]=Math.max(mxs[t]||0,np)};
+ SECS.forEach(s=>s.eff.forEach(l=>{if(l.block==null)touch(l.tid,l.n,s.np)}));
+ BL.forEach(b=>{const seen=new Set();b.tracks.forEach(t=>{if(t.tid>=0&&!seen.has(t.tid)){seen.add(t.tid);touch(t.tid,b.n,Math.max(...b.secs.map(s=>s.np)))}})});
+ const slack=s=>s.slots-s.eff.reduce((a,l)=>a+l.n,0);
+ names.forEach((name,t)=>{if(!S.tun.some(u=>u.t===name))return;
+  let avail=0;for(let d=0;d<5;d++)for(let p=0;p<(mxs[t]||0);p++)if(!un.has(t*50+d*10+p))avail++;
+  const need=load[t]||0;let over=need-avail;if(over<=0)return;
+  const cand=[];SECS.forEach(s=>s.eff.forEach(l=>{if(l.block==null&&l.tid===t)cand.push([s,l])}));const hit=[];
+  while(over>0&&cand.length){cand.sort((a,b)=>slack(b[0])-slack(a[0]));const [s,l]=cand[0];if(l.n<=0){cand.shift();continue}
+   l.n--;s.after.push(l.subj+' ('+name+')');hit.push(s.key);over--}
+  notes.push(name+' needs '+need+' periods but is free for only '+avail+', so '+hit.length+' period(s) are moved after school ('+hit.join(', ')+').')});
+ return {nid,un,names,notes,lim:new Set([...un].map(k=>Math.floor(k/50)))};
 }
-function generate(){
- compile();const t0=Date.now();let best=null;
- for(let i=0;i<800&&Date.now()-t0<4000;i++){const r=attempt();if(!best||r.un<best.un)best=r;if(!r.un)break}
- RES=best;const tt={},mx=Math.max(...SECS.map(s=>s.np));
+function build(){
+ const tc=new Int32Array(PREP.nid*50+50);let clash=0;const miss=[];
+ const addK=k=>{if(tc[k]>=1)clash++;tc[k]++},remK=k=>{tc[k]--;if(tc[k]>=1)clash--};
+ PREP.un.forEach(k=>tc[k]=1);
+ const G={};SECS.forEach(s=>G[s.key]=mk(s.np));
+ const run3=(g,p,np,sub)=>{let r=1,q=p-1;while(q>=0&&g[q]&&g[q].subj===sub){r++;q--}q=p+1;while(q<np&&g[q]&&g[q].subj===sub){r++;q++}return r<=2};
+ const tight=(s,d,p)=>s.lt.some(([t,n])=>{if(tc[t*50+d*10+p]>0)return false;let c=0;for(let dd=0;dd<5;dd++)for(let pp=0;pp<s.np;pp++)if(!G[s.key][dd][pp]&&tc[t*50+dd*10+pp]===0)c++;return c<=n});
+ const lim=b=>b.tracks.filter(t=>PREP.lim.has(t.tid)).length;
+ BL.slice().sort((a,b)=>(lim(b)-lim(a))||(b.secs.length-a.secs.length)||(b.n-a.n)).forEach(b=>{const days=[];
+  for(let k=0;k<b.n;k++){let c=[];
+   for(let pass=0;pass<2&&!c.length;pass++)for(let d=0;d<5;d++)for(let p=0;p<10;p++){
+    if(b.secs.some(s=>p>=s.np||G[s.key][d][p]||(pass===0&&p===0&&s.ct)||(p===s.np-1&&s.needLast&&G[s.key].filter(r=>!r[s.np-1]).length<=s.needLast)||(p===0&&s.needFirst&&G[s.key].filter(r=>!r[0]).length<=s.needFirst)||tight(s,d,p)))continue;
+    if(b.tracks.some(t=>t.tid>=0&&tc[t.tid*50+d*10+p]>0))continue;
+    if(b.tracks.some(t=>b.secs.some(s=>!okSlot(t.subj,p,s.np))))continue;
+    if(b.secs.some(s=>!run3(G[s.key][d],p,s.np,b.label)||G[s.key][d].filter(x=>x&&x.subj===b.label).length>=2))continue;
+    c.push([d,p,days.filter(x=>x===d).length*5+Math.random()*3])}
+   if(!c.length){miss.push(b.label+' ('+b.secs.map(s=>s.key).join(', ')+'): '+(b.n-k)+' period(s) have no common free slot');break}
+   c.sort((x,y)=>x[2]-y[2]);const [d,p]=c[0];days.push(d);const seen=new Set();
+   b.secs.forEach(s=>{const tr=b.tracks.filter(t=>t.keys.has(s.key));
+    G[s.key][d][p]={subj:b.label,teacher:tr.map(t=>b.alt?t.teacher:t.subj+': '+t.teacher).join(b.alt?' / ':' | '),block:true,alt:b.alt,bid:BL.indexOf(b),tracks:tr,fixed:true}});
+   b.tracks.forEach(t=>{if(t.tid>=0&&!seen.has(t.tid)){seen.add(t.tid);addK(t.tid*50+d*10+p)}})}});
+ const mvl={};
+ SECS.forEach(s=>{
+  const g=G[s.key],np=s.np;let its=[];
+  s.eff.forEach((l,i)=>{if(l.block!=null)return;for(let k=0;k<l.n;k++)its.push({subj:l.subj,teacher:l.teacher,i,tid:l.tid,rules:l.rules})});
+  const left=[];for(let d=0;d<5;d++)for(let p=0;p<np;p++)if(!g[d][p])left.push([d,p]);
+  while(its.length<left.length)its.push({free:true});
+  while(its.length>left.length){const k=its.findIndex(x=>x.free);if(k>=0)its.splice(k,1);else{const x=its.pop();miss.push(s.key+' '+x.subj+': no room left in the week')}}
+  const put2=(d,p,x)=>{g[d][p]=x;const k=left.findIndex(c=>c[0]===d&&c[1]===p);if(k>=0)left.splice(k,1)};
+  if(s.ctI>=0)for(let d=0;d<5;d++)if(!g[d][0]){const k=its.findIndex(i=>i.i===s.ctI);if(k>=0)put2(d,0,its.splice(k,1)[0])}
+  const rs=[],rest=[];its.forEach(x=>(x.rules&&(x.rules.includes('last')||x.rules.includes('first'))?rs:rest).push(x));
+  rs.forEach(x=>{const ok=left.filter(c=>okR(x.rules,c[1],np));if(ok.length){const c=ok[(Math.random()*ok.length)|0];put2(c[0],c[1],x)}else rest.push(x)});
+  for(let i=rest.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[rest[i],rest[j]]=[rest[j],rest[i]]}
+  for(let i=rest.length-1;i>=0;i--){const x=rest[i];if(x.tid>=0&&PREP.lim.has(x.tid)){const ok=left.filter(c=>tc[x.tid*50+c[0]*10+c[1]]===0);if(ok.length){const c=ok[(Math.random()*ok.length)|0];addK(x.tid*50+c[0]*10+c[1]);x.k=1;put2(c[0],c[1],x);rest.splice(i,1)}}}
+  left.forEach((c,k)=>g[c[0]][c[1]]=rest[k]);
+  mvl[s.key]=[];for(let d=0;d<5;d++)for(let p=0;p<np;p++){const c=g[d][p];if(!c.fixed)mvl[s.key].push([d,p]);if(c.tid>=0&&!c.k)addK(c.tid*50+d*10+p)}
+ });
+ const cost=s=>{const g=G[s.key],np=s.np;let h=0,sf=0;
+  for(let d=0;d<5;d++){const r=g[d],cnt={};
+   for(let p=0;p<np;p++){const c=r[p];if(c.free)continue;cnt[c.subj]=(cnt[c.subj]||0)+1;
+    if(p>=2&&r[p-1].subj===c.subj&&r[p-2].subj===c.subj)h++;
+    if(c.rules&&c.rules.length&&!okR(c.rules,p,np))h++}
+   for(const k in cnt)if(cnt[k]>2)h+=cnt[k]-2}
+  if(s.ctI>=0){let n=0;for(let d=0;d<5;d++){const c=g[d][0];if(c.i===s.ctI&&!c.block)n++}sf+=.003*Math.max(0,Math.min(5,s.ctN)-n)}
+  const L=Math.min(S.L,np);let mf=0,af=0;for(let d=0;d<5;d++)for(let p=0;p<np;p++)if(g[d][p].free){if(p<L)mf++;else af++}
+  sf+=.001*Math.max(0,Math.abs(mf-af)-1);return h+sf};
+ const sc={};SECS.forEach(s=>sc[s.key]=cost(s));
+ let hot=[];
+ const refresh=()=>{hot=SECS.filter(s=>{if(sc[s.key]>=1)return true;const g=G[s.key];for(let d=0;d<5;d++)for(let p=0;p<s.np;p++){const c=g[d][p];if(c.tid>=0&&tc[c.tid*50+d*10+p]>1)return true}return false})};
+ const apply=(s,g,d1,p1,d2,p2)=>{const x=g[d1][p1],y=g[d2][p2],c0=clash;
+  if(x.tid>=0)remK(x.tid*50+d1*10+p1);if(y.tid>=0)remK(y.tid*50+d2*10+p2);
+  g[d1][p1]=y;g[d2][p2]=x;
+  if(y.tid>=0)addK(y.tid*50+d1*10+p1);if(x.tid>=0)addK(x.tid*50+d2*10+p2);
+  return {after:cost(s),dc:clash-c0}};
+ const step=(n,T)=>{for(let it=0;it<n;it++){
+  const pool=(hot.length&&Math.random()<.8)?hot:SECS;const s=pool[(Math.random()*pool.length)|0];
+  const mv=mvl[s.key];if(mv.length<2)continue;const g=G[s.key];
+  let a=mv[(Math.random()*mv.length)|0];
+  for(let t=0;t<6;t++){const c=g[a[0]][a[1]];if(c.tid>=0&&tc[c.tid*50+a[0]*10+a[1]]>1)break;a=mv[(Math.random()*mv.length)|0]}
+  const d1=a[0],p1=a[1],x=g[d1][p1];let bb=null,bd=1e9;
+  for(let k=0;k<4;k++){const b=mv[(Math.random()*mv.length)|0],d2=b[0],p2=b[1],y=g[d2][p2];
+   if(b===a||x===y||(x.free&&y.free)||(x.rules&&x.rules.length&&!okR(x.rules,p2,s.np))||(y.rules&&y.rules.length&&!okR(y.rules,p1,s.np)))continue;
+   const r=apply(s,g,d1,p1,d2,p2),dl=r.dc+(r.after-sc[s.key]);apply(s,g,d1,p1,d2,p2);
+   if(dl<bd){bd=dl;bb=b}}
+  if(!bb)continue;
+  if(bd<=0||Math.random()<Math.exp(-bd/T))sc[s.key]=apply(s,g,d1,p1,bb[0],bb[1]).after}};
+ const hard=()=>{let h=clash+miss.length*5;SECS.forEach(s=>h+=Math.floor(sc[s.key]));return h};
+ const snap=()=>SECS.map(s=>G[s.key].map(r=>r.slice()));
+ return {refresh,step,hard,snap,miss};
+}
+function analyze(snap,miss){
+ const lines=miss.slice(),bad=new Set(),K={};
+ SECS.forEach((s,si)=>{const g=snap[si];
+  for(let d=0;d<5;d++){const cnt={};
+   for(let p=0;p<s.np;p++){const c=g[d][p];if(c.free)continue;cnt[c.subj]=(cnt[c.subj]||0)+1;
+    if(p>=2&&g[d][p-1].subj===c.subj&&g[d][p-2].subj===c.subj)lines.push(s.key+' '+DAYS[d]+': '+c.subj+' three in a row');
+    if(c.rules&&c.rules.length&&!okR(c.rules,p,s.np))lines.push(s.key+' '+DAYS[d]+' P'+(p+1)+': '+c.subj+' breaks its period rule');
+    (c.block?c.tracks.map(t=>t.tid):[c.tid]).forEach(t=>{if(t>=0)(K[t*50+d*10+p]=K[t*50+d*10+p]||[]).push([s,c])})}
+   for(const q in cnt)if(cnt[q]>2)lines.push(s.key+' '+DAYS[d]+': '+q+' appears '+cnt[q]+' times')}});
+ for(const k in K){const lst=K[k],o=new Set(lst.map(x=>x[1].block?'B'+x[1].bid:x[1])),u=PREP.un.has(+k);
+  if(o.size+(u?1:0)>1){const t=Math.floor(k/50),d=Math.floor((k%50)/10),p=k%10;
+   lines.push(PREP.names[t]+' on '+DAYS[d]+' P'+(p+1)+': '+(u?'placed while unavailable, and ':'')+'double-booked in '+lst.map(x=>x[0].key).join(', '));lst.forEach(x=>bad.add(x[1]))}}
+ return {lines,bad};
+}
+async function solve(tl){
+ const t0=Date.now();let best=null,k=0,done=false,Bz=null;
+ const over=()=>STOP||Date.now()-t0>tl*1000;
+ const tick=async m=>{$('status').textContent=m;await new Promise(r=>setTimeout(r,0))};
+ while(!done){
+  const B=build();k++;
+  for(let round=0;round<2&&!done;round++){const IT=120000,CH=10000;
+   for(let c=0;c<IT/CH;c++){
+    B.refresh();B.step(CH,Math.max(.05,.45-.4*(c/(IT/CH))));
+    const h=B.hard();if(!best||h<best.h)best={h,snap:B.snap(),miss:B.miss};
+    if(h===0){done=true;Bz=B;break}
+    if(over()){done=true;break}
+    if(c%2===0)await tick('Solving: attempt '+k+', conflicts left '+best.h+', '+Math.round((Date.now()-t0)/1000)+'s')}}
+  if(over())done=true}
+ if(Bz&&!STOP){for(let c=0;c<12&&Date.now()-t0<tl*1000+15000;c++){Bz.refresh();Bz.step(10000,.003);if(c%3===0)await tick('Polishing the free periods…')}
+  if(Bz.hard()===0)best={h:0,snap:Bz.snap(),miss:Bz.miss}}
+ $('status').textContent='Finished in '+Math.round((Date.now()-t0)/1000)+'s';
+ return best;
+}
+async function generate(){
+ STOP=false;compile();PREP=prepare();$('stop').style.display='';$('gen').disabled=true;
+ const best=await solve(S.tl||120);
+ $('stop').style.display='none';$('gen').disabled=false;
+ const an=analyze(best.snap,best.miss),grid={};
+ SECS.forEach((s,si)=>grid[s.key]=best.snap[si].map(row=>row.map((c,p)=>c.free?{free:true}:c.block?Object.assign({},c):{subj:c.subj,teacher:c.teacher,i:c.i,ct:p===0&&!!s.ct&&c.teacher===s.ct,bad:an.bad.has(c)})));
+ RES={grid,un:an.lines.length,miss:an.lines};
+ const tt={},mx=Math.max(...SECS.map(s=>s.np));
  SECS.forEach(s=>RES.grid[s.key].forEach((row,d)=>row.forEach((c,p)=>{
-  if(!c||c.free)return;
+  if(c.free)return;
   if(c.block){c.tracks.forEach(t=>{if(!t.teacher)return;const a=(tt[t.teacher]=tt[t.teacher]||mk(mx))[d][p];
    if(a){if(!a.key.split(', ').includes(s.key))a.key+=', '+s.key}else tt[t.teacher][d][p]={subj:c.alt?c.subj:t.subj,key:s.key}});return}
   if(!c.teacher)return;(tt[c.teacher]=tt[c.teacher]||mk(mx))[d][p]={subj:c.subj,key:s.key}})));
  RES.tt=tt;$('out').style.display='block';
- const w=LW.concat(validate(SECS));let h='';
- h+=RES.un?'<div class="msg warn">Could not place '+RES.un+' period(s). Try Generate again or ease the load:<br>'+RES.miss.join('<br>')+'</div>':'<div class="msg ok">All periods placed with no teacher clashes.</div>';
+ const w=LW.concat(PREP.notes,validate(SECS));let h='';
+ h+=RES.un?'<div class="msg warn">Some rules could not be met (shown with a red outline where a teacher is double-booked):<br>'+RES.miss.join('<br>')+'</div>':'<div class="msg ok">Every period is placed with no teacher clashes and every rule met.</div>';
  w.forEach(x=>h+='<div class="msg warn">'+x+'</div>');
  $('msgs').innerHTML=h;setView(view);
 }
@@ -280,9 +365,9 @@ function table(cells,teacherMode,title,sub){
   if(p===S.L&&p<np)h+='<tr class="lunch"><td colspan="6">LUNCH BREAK</td></tr>';
   h+='<tr><td class="p">P'+(p+1)+'</td>';
   for(let d=0;d<5;d++){const c=cells[d][p];
-   if(!c||c.free)h+='<td class="free">Free</td>';
+   if(!c||c.free)h+=c&&c.un?'<td class="unp">Unplaced</td>':'<td class="free">Free</td>';
    else if(teacherMode)h+='<td class="cell" style="--h:'+hue(c.subj)+'"><b>'+c.key+'</b><small>'+c.subj+'</small></td>';
-   else h+='<td class="cell" style="--h:'+hue(c.subj)+'"><b>'+c.subj+(c.ct?' ★':'')+'</b><small>'+(c.teacher||'No teacher')+'</small></td>';}
+   else h+='<td class="cell'+(c.bad?' badc':'')+'" style="--h:'+hue(c.subj)+'"><b>'+c.subj+(c.ct?' ★':'')+'</b><small>'+(c.teacher||'No teacher')+'</small></td>';}
   h+='</tr>';}
  return h+'</table></div></div>';
 }
@@ -292,14 +377,14 @@ function renderSettings(){
  $('setCard').style.display='block';
  const cl=[...new Set(SECS.map(s=>s.cls))].sort((a,b)=>a-b);
  const lab=c=>SECS.find(s=>s.cls===c).key.split('-')[0];
- const subs=[...new Set(SECS.flatMap(s=>s.want.map(x=>x.subj)))];
- const tch=[...new Set(SECS.flatMap(s=>s.lessons.map(l=>l.teacher)).filter(Boolean))].sort();
+ const subs=ALLSUBJ.slice();
+ const tch=[...ALLT].sort();
  const sel=(a,v,h)=>'<select onchange="'+h+'">'+a+'</select>';
- let h='<div class="title">Structure</div><div class="row">Lunch after period <input type="number" min="1" max="8" value="'+S.L+'" style="width:64px" onchange="S.L=+this.value">'
+ let h='<div class="title">Structure</div><div class="row">Lunch after period <input type="number" min="1" max="8" value="'+S.L+'" style="width:64px" onchange="S.L=+this.value"> <label>Solver time limit (seconds) <input type="number" min="10" max="600" value="'+(S.tl||120)+'" style="width:72px" onchange="S.tl=+this.value"></label>'
   +cl.map(c=>'<label>Class '+lab(c)+' periods/day <input type="number" min="1" max="10" style="width:64px" value="'+(S.ppd[c]??(c<=2?7:8))+'" onchange="S.ppd['+c+']=+this.value"></label>').join('')+'</div>';
  h+='<div class="title" style="margin-top:14px">Parallel blocks <span style="font-size:13px;color:var(--mute);font-weight:600">(subjects that run at the same time)</span></div>';
  S.blocks.forEach((b,i)=>{
-  h+='<div class="blk"><div class="row"><input placeholder="Block name" value="'+b.name+'" onchange="S.blocks['+i+'].name=this.value"><select onchange="S.blocks['+i+'].mode=this.value;renderSettings()"><option value="par"'+(b.mode!=='alt'?' selected':'')+'>Parallel (same time)</option><option value="alt"'+(b.mode==='alt'?' selected':'')+'>Alternate weeks</option></select> Periods/week <input type="number" min="1" style="width:64px" value="'+b.n+'" onchange="S.blocks['+i+'].n=+this.value"><button onclick="S.blocks.splice('+i+',1);renderSettings()">Delete block</button></div><div class="row">'
+  h+='<div class="blk"><div class="row"><input placeholder="Block name" value="'+b.name+'" onchange="S.blocks['+i+'].name=this.value"><select onchange="S.blocks['+i+'].mode=this.value;renderSettings()"><option value="par"'+(b.mode!=='alt'?' selected':'')+'>Parallel (same time)</option><option value="alt"'+(b.mode==='alt'?' selected':'')+'>Alternate weeks</option></select> Periods/week <input type="number" min="1" style="width:64px" value="'+b.n+'" onchange="S.blocks['+i+'].n=+this.value"><label class="chip"><input type="checkbox" '+(b.each?'checked':'')+' onchange="S.blocks['+i+'].each=this.checked"> Each section separately</label><button onclick="S.blocks.splice('+i+',1);renderSettings()">Delete block</button></div><div class="row">'
   +SECS.map(s=>'<label class="chip"><input type="checkbox" '+(b.secs.includes(s.key)?'checked':'')+' onchange="togSec('+i+',\''+s.key+'\',this.checked)"> '+s.key+'</label>').join('')+'</div>'
   +b.tracks.map((t,j)=>'<div class="row"><select onchange="S.blocks['+i+'].tracks['+j+'].subj=this.value">'+opt(subs,t.subj,'Subject')+'</select><select onchange="S.blocks['+i+'].tracks['+j+'].teacher=this.value">'+opt(tch,t.teacher,'Teacher')+'</select><input placeholder="Sections it covers (blank = all ticked)" style="min-width:240px" value="'+(t.secs||'')+'" onchange="S.blocks['+i+'].tracks['+j+'].secs=this.value"><button aria-label="Remove track" onclick="S.blocks['+i+'].tracks.splice('+j+',1);renderSettings()">✕</button></div>').join('')
   +'<button onclick="S.blocks['+i+'].tracks.push({subj:\'\',teacher:\'\',secs:\'\'});renderSettings()">+ Track</button></div>';});
@@ -323,7 +408,7 @@ function masterRows(k){
  const mx=NPMAX();
  if(k==='s')return SECS.map(s=>({name:s.key,cells:DAYS.flatMap((_,d)=>Array.from({length:mx},(_,p)=>{
   if(p>=s.np)return {na:true};const c=RES.grid[s.key][d][p];
-  return !c||c.free?{free:true}:{subj:c.subj,sub:c.teacher||'',h:hue(c.subj)}}))}));
+  return !c||c.free?{free:true,un:!!(c&&c.un)}:{subj:c.subj,sub:c.teacher||'',h:hue(c.subj)}}))}));
  return Object.keys(RES.tt).sort().map(t=>({name:t,cells:DAYS.flatMap((_,d)=>Array.from({length:mx},(_,p)=>{
   const c=RES.tt[t][d][p];return c?{subj:c.key,sub:c.subj,h:hue(c.subj)}:{free:true}}))}));
 }
@@ -333,7 +418,7 @@ function masterTable(k){
  +DAYS.map(d=>'<th colspan="'+mx+'" class="dh">'+d+'</th>').join('')+'</tr><tr>'
  +DAYS.map(()=>Array.from({length:mx},(_,p)=>'<th class="ph'+(p===0?' d1':'')+'">P'+(p+1)+'</th>').join('')).join('')+'</tr></thead><tbody>';
  rows.forEach(r=>{h+='<tr><th class="sticky">'+r.name+'</th>'+r.cells.map((c,i)=>{const b=i%mx===0?' d1':'';
-  return c.na?'<td class="na'+b+'">–</td>':c.free?'<td class="free mc'+b+'">Free</td>':'<td class="cell mc'+b+'" style="--h:'+c.h+'"><b>'+c.subj+'</b><small>'+c.sub+'</small></td>'}).join('')+'</tr>'});
+  return c.na?'<td class="na'+b+'">–</td>':c.free?'<td class="'+(c.un?'unp':'free')+' mc'+b+'">'+(c.un?'Unplaced':'Free')+'</td>':'<td class="cell mc'+b+'" style="--h:'+c.h+'"><b>'+c.subj+'</b><small>'+c.sub+'</small></td>'}).join('')+'</tr>'});
  return h+'</tbody></table></div></div>';
 }
 function setView(v){
@@ -351,8 +436,8 @@ function render(){
  const sel=$('pick').value;let h='';
  if(view==='class'){
   SECS.filter(s=>sel==='*'||s.key===sel).forEach(s=>{
-   const f=RES.grid[s.key].reduce((a,r)=>a+r.filter(c=>c&&c.free).length,0);
-   h+=table(RES.grid[s.key],false,'Class '+s.key,(s.ct?'Class teacher: '+s.ct+' · ':'')+f+' free periods');});
+   const f=RES.grid[s.key].reduce((a,r)=>a+r.filter(c=>c&&c.free&&!c.un).length,0);
+   h+=table(RES.grid[s.key],false,'Class '+s.key,(s.ct?'Class teacher: '+s.ct+' · ':'')+f+' free periods'+(s.after&&s.after.length?' · After school: '+s.after.join(', '):''));});
  }else{
   Object.keys(RES.tt).sort().filter(t=>sel==='*'||t===sel).forEach(t=>{
    const n=RES.tt[t].reduce((a,r)=>a+r.filter(Boolean).length,0);
@@ -360,7 +445,7 @@ function render(){
  }
  $('views').innerHTML=h;
 }
-const cellTxt=c=>c.na?'':c.free?'Free':c.subj+(c.sub?'\n'+c.sub:'');
+const cellTxt=c=>c.na?'':c.free?(c.un?'Unplaced':'Free'):c.subj+(c.sub?'\n'+c.sub:'');
 async function dl(name,data){
  $('dlmsg').textContent='';
  try{const d=(typeof claude!=='undefined')?await claude.use('downloads'):null;
@@ -394,7 +479,7 @@ function exportPDF(){
   headStyles:{fillColor:[184,161,240],textColor:255},
   columnStyles:{0:{halign:'left',fontStyle:'bold',cellWidth:20}},
   didParseCell:d=>{if(d.section==='body'&&d.column.index>0){const c=rows[d.row.index].cells[d.column.index-1];
-   d.cell.styles.fillColor=c.h!=null?hsl(c.h,75,90):c.free?[250,247,255]:[255,255,255]}}});
+   d.cell.styles.fillColor=c.h!=null?hsl(c.h,75,90):c.free?(c.un?[255,214,214]:[250,247,255]):[255,255,255]}}});
  dl((k==='s'?'section':'teacher')+'-master.pdf',doc.output('arraybuffer'));
 }
 function tryBuild(){
@@ -454,5 +539,5 @@ PT|2|2|2|2|2|2|2|2|2|2|2|2`;
  f.onchange=e=>{if(e.target.files[0])readFile(e.target.files[0],n)};});
 $('sample').onclick=sample;$('gen').onclick=generate;
 $('tClass').onclick=()=>setView('class');$('tTeacher').onclick=()=>setView('teacher');
-$('pick').onchange=render;$('tMS').onclick=()=>setView('msec');$('tMT').onclick=()=>setView('mteach');$('xls').onclick=exportXLSX;$('pdf').onclick=exportPDF;$('print').onclick=()=>window.print();
+$('pick').onchange=render;$('tMS').onclick=()=>setView('msec');$('tMT').onclick=()=>setView('mteach');$('xls').onclick=exportXLSX;$('stop').onclick=()=>{STOP=true};$('pdf').onclick=exportPDF;$('print').onclick=()=>window.print();
 </script></body></html>
