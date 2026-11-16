@@ -56,21 +56,31 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
 <div class="card noprint">
  <div class="row2">
-  <div class="drop" id="drop1" tabindex="0" role="button"><b>1. Periods per subject</b><br><span style="color:var(--mute)">Subjects down, sections across</span><span class="n" id="n1"></span></div>
-  <div class="drop" id="drop2" tabindex="0" role="button"><b>2. Teachers</b><br><span style="color:var(--mute)">Teacher, subjects, classes and sections</span><span class="n" id="n2"></span></div>
+  <div class="drop" id="drop1" tabindex="0" role="button"><b>File 1: Periods</b><br><span style="color:var(--mute)">Subjects down, sections across</span><span class="n" id="n1"></span></div>
+  <div class="drop" id="drop2" tabindex="0" role="button"><b>File 2: Teachers</b><br><span style="color:var(--mute)">Teacher, subjects, classes and sections</span><span class="n" id="n2"></span></div>
  </div>
  <input type="file" id="file1" accept=".xlsx,.xls" hidden><input type="file" id="file2" accept=".xlsx,.xls" hidden>
  <div class="row" style="margin-top:12px">
-  <button id="sample">Load sample data</button>
+  <button id="sample">Load sample data</button><span id="cbox" class="msg warn" style="display:none;margin:0">This will replace your uploaded data. <button id="cyes" class="pri">Replace</button> <button id="cno">Cancel</button></span>
   <button class="pri" id="gen" disabled>Generate timetables</button><button id="stop" style="display:none">Stop and use best</button>
   <span id="status" style="color:var(--mute);font-weight:600"></span>
  </div>
- <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:700">What the two sheets should look like</summary>
-  <p style="font-size:13px;color:var(--mute)"><b>Sheet 1:</b> first column SUBJECT, then one column per section (I-A, I-B, or 1-A, 1-B; roman or normal numbers) with periods per week. Use “-” or leave blank when a subject isn’t taught. An optional row named “Class Teacher” can hold each section’s class teacher.</p>
-  <div class="scroll"><table class="fmt"><tr><th>Subject</th><th>Teacher</th><th>Classes &amp; sections</th><th>Class Teacher of (optional)</th></tr>
-  <tr><td>Maths</td><td>Nithya</td><td>V-A, V-B</td><td>V-A</td></tr>
-  <tr><td>Hindi</td><td>Hemavathi</td><td>III - V</td><td></td></tr></table></div>
-  <p style="font-size:13px;color:var(--mute)"><b>Sheet 2:</b> list sections with commas, a whole class by its number (“IV” is IV-A and IV-B) or a range (“III - V”). Subject names are matched loosely, so “AE” matches “AE/Drawing”. In the optional “Class Teacher of” column write the section, for example V-A (a bare “Yes” works only for a teacher with one section). If no class teachers are given, one is picked for each section and you can change it on the page. A class teacher gets Period 1 every day, using the subject they teach most in that section. If two teachers share a subject in a section, its periods are split between them.</p>
+ <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:700">What the two files should look like</summary>
+  <p class="title" style="margin:12px 0 4px">File 1: Periods</p>
+  <p style="font-size:13px;color:var(--mute);margin:0 0 6px">One row per subject, one column per section. Write the periods per week, or “-” (or leave blank) if the section doesn’t take that subject. A title row above the headings is fine, and a TOTAL row is ignored.</p>
+  <div class="scroll"><table class="fmt"><tr><th>SUBJECT</th><th>I-A</th><th>I-B</th><th>V-A</th><th>V-B</th></tr>
+  <tr><td>Maths</td><td>7</td><td>7</td><td>6</td><td>6</td></tr>
+  <tr><td>English</td><td>7</td><td>7</td><td>5</td><td>5</td></tr>
+  <tr><td>Library</td><td>-</td><td>-</td><td>1</td><td>1</td></tr>
+  <tr><td>PT</td><td>2</td><td>2</td><td>2</td><td>2</td></tr></table></div>
+  <p class="title" style="margin:16px 0 4px">File 2: Teachers</p>
+  <p style="font-size:13px;color:var(--mute);margin:0 0 6px">One row per teacher and subject. List sections with commas (I-A, I-B), a whole class by its number (IV), or a range (III - V). Subject names must match File 1 (spaces and full stops are ignored). The last column is optional: write the section the teacher is class teacher of.</p>
+  <div class="scroll"><table class="fmt"><tr><th>SUBJECT</th><th>TEACHER</th><th>Classes &amp; Sections</th><th>Class Teacher</th></tr>
+  <tr><td>Maths</td><td>Anita</td><td>I-A, I-B</td><td>I-A</td></tr>
+  <tr><td>English</td><td>Ravi</td><td>V-A, V-B</td><td>V-A</td></tr>
+  <tr><td>Library</td><td>Meena</td><td>V</td><td></td></tr>
+  <tr><td>PT</td><td>Kumar</td><td>I - V</td><td></td></tr></table></div>
+  <p style="font-size:13px;color:var(--mute)">If no class teachers are given, the app suggests one per section and you can change them in Settings. A bare “Yes” in the Class Teacher column works only for a teacher with one section.</p>
  </details>
 </div>
 
@@ -80,7 +90,6 @@ button:disabled{opacity:.5;cursor:not-allowed}
   <div class="row"><div class="tabs row"><button id="tClass" class="on">Class view</button><button id="tTeacher">Teacher view</button><button id="tMS">Section master</button><button id="tMT">Teacher master</button></div>
   <select id="pick" aria-label="Choose"></select><button id="print">Print</button><button id="xls">Download Excel</button><button id="pdf">Download PDF</button><span id="dlmsg" style="color:var(--mute);font-weight:600"></span></div>
   <div id="msgs"></div>
-  <details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700">Class teachers (they get Period 1)</summary><div class="row2" id="ctSel" style="margin-top:10px"></div></details>
  </div>
  <div id="views"></div>
 </div>
@@ -132,10 +141,16 @@ function autoCT(secs){
  cand.sort((a,b)=>b.sc-a.sc);
  cand.forEach(c=>{if(!c.s.ct&&!taken.has(c.t)){c.s.ct=c.t;taken.add(c.t)}});
 }
+function precheck(){
+ if(!SECS.length||!$('pre'))return;
+ compile();PREP=prepare();
+ const w=LW.concat(PREP.notes,validate(SECS));
+ $('pre').innerHTML='<div class="title">Checks before generating <button onclick="precheck()">Re-check</button></div>'+(w.length?w.map(x=>'<div class="msg warn">'+x+'</div>').join(''):'<div class="msg ok">No problems found in the data and settings.</div>');
+}
 function renderCT(){
  $('ctSel').innerHTML=SECS.map((s,i)=>{const ts=[...new Set(s.lessons.map(l=>l.teacher).filter(Boolean))];
   return '<label style="font-weight:600;font-size:14px">'+s.key+'<br><select data-i="'+i+'" style="width:100%"><option value="">None</option>'+ts.map(t=>'<option'+(t===s.ct?' selected':'')+'>'+t+'</option>').join('')+'</select></label>'}).join('');
- $('ctSel').querySelectorAll('select').forEach(el=>el.onchange=()=>{const s=SECS[+el.dataset.i];s.ct=el.value||null;S.ct[s.key]=el.value;generate()});
+ $('ctSel').querySelectorAll('select').forEach(el=>el.onchange=()=>{const s=SECS[+el.dataset.i];s.ct=el.value||null;S.ct[s.key]=el.value;precheck()});
 }
 
 function link(secs,rows){
@@ -380,7 +395,7 @@ function renderSettings(){
  const subs=ALLSUBJ.slice();
  const tch=[...ALLT].sort();
  const sel=(a,v,h)=>'<select onchange="'+h+'">'+a+'</select>';
- let h='<div class="title">Structure</div><div class="row">Lunch after period <input type="number" min="1" max="8" value="'+S.L+'" style="width:64px" onchange="S.L=+this.value"> <label>Solver time limit (seconds) <input type="number" min="10" max="600" value="'+(S.tl||120)+'" style="width:72px" onchange="S.tl=+this.value"></label>'
+ let h='<div id="pre"></div><details style="margin:10px 0"><summary style="cursor:pointer;font-weight:700">Class teachers (a preference: they get Period 1 when possible)</summary><div class="row2" id="ctSel" style="margin-top:10px"></div></details><div class="title">Structure</div><div class="row">Lunch after period <input type="number" min="1" max="8" value="'+S.L+'" style="width:64px" onchange="S.L=+this.value"> <label>Solver time limit (seconds) <input type="number" min="10" max="600" value="'+(S.tl||120)+'" style="width:72px" onchange="S.tl=+this.value"></label>'
   +cl.map(c=>'<label>Class '+lab(c)+' periods/day <input type="number" min="1" max="10" style="width:64px" value="'+(S.ppd[c]??(c<=2?7:8))+'" onchange="S.ppd['+c+']=+this.value"></label>').join('')+'</div>';
  h+='<div class="title" style="margin-top:14px">Parallel blocks <span style="font-size:13px;color:var(--mute);font-weight:600">(subjects that run at the same time)</span></div>';
  S.blocks.forEach((b,i)=>{
@@ -395,7 +410,7 @@ function renderSettings(){
   +'<button onclick="S.tun.push({t:\'\',day:-1,from:1,to:8});renderSettings()">+ Unavailable slot</button>';
  const P=profiles();
  h+='<div class="title" style="margin-top:14px">School profile</div><div class="row"><input id="pname" placeholder="Profile name"><button onclick="saveProf()">Save</button><select id="plist"><option value="">Saved profiles</option>'+opt(Object.keys(P))+'</select><button onclick="loadProf($(\'plist\').value)">Load</button></div><div class="row" style="margin-top:8px"><textarea id="ptxt" rows="2" style="flex:1;min-width:220px" placeholder="Export text appears here; paste a saved export to restore"></textarea><button onclick="expo()">Export</button><button onclick="impo()">Import</button></div><p style="color:var(--mute);font-size:13px;margin:8px 0 0">After changing settings, press “Generate timetables” at the top.</p>';
- $('setBody').innerHTML=h;
+ $('setBody').innerHTML=h;renderCT();precheck();
 }
 function profiles(){try{return JSON.parse(localStorage.getItem('tt_profiles')||'{}')}catch(e){return {}}}
 function saveProf(){const n=$('pname').value.trim();if(!n)return;try{const p=profiles();p[n]=S;localStorage.setItem('tt_profiles',JSON.stringify(p))}catch(e){}renderSettings()}
@@ -483,15 +498,15 @@ function exportPDF(){
  dl((k==='s'?'section':'teacher')+'-master.pdf',doc.output('arraybuffer'));
 }
 function tryBuild(){
+ RES=null;$('out').style.display='none';
  if(!W1){$('status').textContent='Add the periods sheet to continue.';return}
  if(!W2){$('status').textContent='Add the teachers sheet to continue.';return}
  const secs=buildSections(W1);
  if(!secs.length){$('status').textContent='No sections found. Section names should be in the first row of sheet 1.';return}
  LW=link(secs,W2);secs.forEach(s=>{if(S.ct[s.key])s.ct=S.ct[s.key]});const auto=secs.filter(s=>!s.ct).length;autoCT(secs);
  if(auto)LW.push('No class teachers were given for '+auto+' sections, so I picked one per section (the teacher with the most periods in it). You can change them under “Class teachers”.');
- SECS=secs;renderCT();renderSettings();$('gen').disabled=false;
- $('status').textContent=SECS.length+' sections loaded';
- generate();
+ SECS=secs;renderSettings();document.querySelector('#setCard details').open=true;$('gen').disabled=false;
+ $('status').textContent=SECS.length+' sections and '+ALLT.size+' teachers loaded. Check the settings, then press Generate timetables.';
 }
 function readFile(f,slot){
  const fr=new FileReader();
@@ -537,7 +552,7 @@ PT|2|2|2|2|2|2|2|2|2|2|2|2`;
  d.ondragover=e=>e.preventDefault();
  d.ondrop=e=>{e.preventDefault();if(e.dataTransfer.files[0])readFile(e.dataTransfer.files[0],n)};
  f.onchange=e=>{if(e.target.files[0])readFile(e.target.files[0],n)};});
-$('sample').onclick=sample;$('gen').onclick=generate;
+$('sample').onclick=()=>{if(W1||W2)$('cbox').style.display='inline-block';else sample()};$('cyes').onclick=()=>{$('cbox').style.display='none';sample()};$('cno').onclick=()=>{$('cbox').style.display='none'};$('gen').onclick=generate;
 $('tClass').onclick=()=>setView('class');$('tTeacher').onclick=()=>setView('teacher');
 $('pick').onchange=render;$('tMS').onclick=()=>setView('msec');$('tMT').onclick=()=>setView('mteach');$('xls').onclick=exportXLSX;$('stop').onclick=()=>{STOP=true};$('pdf').onclick=exportPDF;$('print').onclick=()=>window.print();
 </script></body></html>
