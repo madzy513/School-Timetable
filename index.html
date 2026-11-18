@@ -145,12 +145,12 @@ function precheck(){
  if(!SECS.length||!$('pre'))return;
  compile();PREP=prepare();
  const w=LW.concat(PREP.notes,validate(SECS));
- $('pre').innerHTML='<div class="title">Checks before generating <button onclick="precheck()">Re-check</button></div>'+(w.length?w.map(x=>'<div class="msg warn">'+x+'</div>').join(''):'<div class="msg ok">No problems found in the data and settings.</div>');
+ $('pre').innerHTML=(w.length?w.map(x=>'<div class="msg warn">'+x+'</div>').join(''):'<div class="msg ok">No problems found in the data and settings.</div>');
 }
 function renderCT(){
  $('ctSel').innerHTML=SECS.map((s,i)=>{const ts=[...new Set(s.lessons.map(l=>l.teacher).filter(Boolean))];
   return '<label style="font-weight:600;font-size:14px">'+s.key+'<br><select data-i="'+i+'" style="width:100%"><option value="">None</option>'+ts.map(t=>'<option'+(t===s.ct?' selected':'')+'>'+t+'</option>').join('')+'</select></label>'}).join('');
- $('ctSel').querySelectorAll('select').forEach(el=>el.onchange=()=>{const s=SECS[+el.dataset.i];s.ct=el.value||null;S.ct[s.key]=el.value;precheck()});
+ $('ctSel').querySelectorAll('select').forEach(el=>el.onchange=()=>{const s=SECS[+el.dataset.i];s.ct=el.value||null;S.ct[s.key]=el.value});
 }
 
 function link(secs,rows){
@@ -192,7 +192,7 @@ function link(secs,rows){
  return w;
 }
 
-const defS=()=>({L:4,tl:120,ppd:{},blocks:[],subjRules:[],tun:[],ct:{}});
+const defS=()=>({v:2,L:4,tl:180,run:3,even:true,ppd:{},blocks:[],subjRules:[],tun:[],ct:{}});
 function applyCT(){SECS.forEach(s=>{if(S.ct[s.key]!==undefined)s.ct=S.ct[s.key]||null});renderCT()}
 let S=defS(),BL=[];
 const mk=n=>Array.from({length:5},()=>Array(n).fill(null));
@@ -236,7 +236,8 @@ function prepare(){
   s.lt=[];s.needLast=0;s.needFirst=0;s.eff.forEach(l=>{if(l.block==null){if(l.tid>=0&&S.tun.some(u=>u.t===l.teacher))s.lt.push([l.tid,l.n]);if(l.rules.includes('last'))s.needLast+=l.n;if(l.rules.includes('first'))s.needFirst+=l.n}})});
  BL.forEach(b=>b.tracks.forEach(t=>t.tid=tid(t.teacher)));
  S.tun.forEach(u=>tid(u.t));
- const un=new Set();S.tun.forEach(u=>{if(!u.t)return;const t=tid(u.t);for(let d=0;d<5;d++)if(u.day<0||u.day===d)for(let p=u.from-1;p<u.to;p++)un.add(t*50+d*10+p)});
+ const av={};S.tun.forEach(u=>{if(!u.t)return;const t=tid(u.t);(av[t]=av[t]||new Set());for(let d=0;d<5;d++)if(u.day<0||u.day===d)for(let p=u.from-1;p<u.to;p++)av[t].add(d*10+p)});
+ const un=new Set();Object.keys(av).forEach(t=>{for(let d=0;d<5;d++)for(let p=0;p<10;p++)if(!av[t].has(d*10+p))un.add(t*50+d*10+p)});
  const load={},mxs={};
  const touch=(t,n,np)=>{if(t<0)return;load[t]=(load[t]||0)+n;mxs[t]=Math.max(mxs[t]||0,np)};
  SECS.forEach(s=>s.eff.forEach(l=>{if(l.block==null)touch(l.tid,l.n,s.np)}));
@@ -252,8 +253,10 @@ function prepare(){
  return {nid,un,names,notes,lim:new Set([...un].map(k=>Math.floor(k/50)))};
 }
 function build(){
- const tc=new Int32Array(PREP.nid*50+50);let clash=0;const miss=[];
- const addK=k=>{if(tc[k]>=1)clash++;tc[k]++},remK=k=>{tc[k]--;if(tc[k]>=1)clash--};
+ const tc=new Int32Array(PREP.nid*50+50),tb=new Int32Array(PREP.nid*50+50),dc=new Int32Array(PREP.nid*5+5),tot=new Int32Array(PREP.nid+1);let clash=0,SOFT=false;const miss=[];
+ const addK=k=>{if(tc[k]>=1)clash++;tc[k]++;tb[k]++;const t=(k/50)|0;dc[t*5+(((k%50)/10)|0)]++;tot[t]++},remK=k=>{tc[k]--;if(tc[k]>=1)clash--;tb[k]--;const t=(k/50)|0;dc[t*5+(((k%50)/10)|0)]--;tot[t]--};
+ const tdSoft=(t,d)=>{let v=0;if(S.even){const lo=Math.floor(tot[t]/5),hi=Math.ceil(tot[t]/5),n=dc[t*5+d];v+=.02*(n<lo?lo-n:n>hi?n-hi:0)}
+  if(S.run>0){let r=0;for(let p=0;p<10;p++){if(p===S.L)r=0;if(tb[t*50+d*10+p]>0){r++;if(r>S.run)v+=.01}else r=0}}return v};
  PREP.un.forEach(k=>tc[k]=1);
  const G={};SECS.forEach(s=>G[s.key]=mk(s.np));
  const run3=(g,p,np,sub)=>{let r=1,q=p-1;while(q>=0&&g[q]&&g[q].subj===sub){r++;q--}q=p+1;while(q<np&&g[q]&&g[q].subj===sub){r++;q++}return r<=2};
@@ -294,18 +297,21 @@ function build(){
     if(p>=2&&r[p-1].subj===c.subj&&r[p-2].subj===c.subj)h++;
     if(c.rules&&c.rules.length&&!okR(c.rules,p,np))h++}
    for(const k in cnt)if(cnt[k]>2)h+=cnt[k]-2}
-  if(s.ctI>=0){let n=0;for(let d=0;d<5;d++){const c=g[d][0];if(c.i===s.ctI&&!c.block)n++}sf+=.003*Math.max(0,Math.min(5,s.ctN)-n)}
+  if(s.ctI>=0){let n=0;for(let d=0;d<5;d++){const c=g[d][0];if(c.i===s.ctI&&!c.block)n++}sf+=.001*Math.max(0,Math.min(5,s.ctN)-n)}
   const L=Math.min(S.L,np);let mf=0,af=0;for(let d=0;d<5;d++)for(let p=0;p<np;p++)if(g[d][p].free){if(p<L)mf++;else af++}
-  sf+=.001*Math.max(0,Math.abs(mf-af)-1);return h+sf};
+  sf+=.003*Math.max(0,Math.abs(mf-af)-1);return h+sf};
  const sc={};SECS.forEach(s=>sc[s.key]=cost(s));
  let hot=[];
  const refresh=()=>{hot=SECS.filter(s=>{if(sc[s.key]>=1)return true;const g=G[s.key];for(let d=0;d<5;d++)for(let p=0;p<s.np;p++){const c=g[d][p];if(c.tid>=0&&tc[c.tid*50+d*10+p]>1)return true}return false})};
  const apply=(s,g,d1,p1,d2,p2)=>{const x=g[d1][p1],y=g[d2][p2],c0=clash;
+  let pr=null,sb=0,sa=0;
+  if(SOFT){pr=[];[x,y].forEach(c=>{if(c.tid>=0)[d1,d2].forEach(d=>{if(!pr.some(q=>q[0]===c.tid&&q[1]===d))pr.push([c.tid,d])})});pr.forEach(q=>sb+=tdSoft(q[0],q[1]))}
   if(x.tid>=0)remK(x.tid*50+d1*10+p1);if(y.tid>=0)remK(y.tid*50+d2*10+p2);
   g[d1][p1]=y;g[d2][p2]=x;
   if(y.tid>=0)addK(y.tid*50+d1*10+p1);if(x.tid>=0)addK(x.tid*50+d2*10+p2);
-  return {after:cost(s),dc:clash-c0}};
- const step=(n,T)=>{for(let it=0;it<n;it++){
+  if(pr)pr.forEach(q=>sa+=tdSoft(q[0],q[1]));
+  return {after:cost(s),dc:clash-c0,ds:sa-sb}};
+ const step=(n,T,soft)=>{SOFT=!!soft;for(let it=0;it<n;it++){
   const pool=(hot.length&&Math.random()<.8)?hot:SECS;const s=pool[(Math.random()*pool.length)|0];
   const mv=mvl[s.key];if(mv.length<2)continue;const g=G[s.key];
   let a=mv[(Math.random()*mv.length)|0];
@@ -313,7 +319,7 @@ function build(){
   const d1=a[0],p1=a[1],x=g[d1][p1];let bb=null,bd=1e9;
   for(let k=0;k<4;k++){const b=mv[(Math.random()*mv.length)|0],d2=b[0],p2=b[1],y=g[d2][p2];
    if(b===a||x===y||(x.free&&y.free)||(x.rules&&x.rules.length&&!okR(x.rules,p2,s.np))||(y.rules&&y.rules.length&&!okR(y.rules,p1,s.np)))continue;
-   const r=apply(s,g,d1,p1,d2,p2),dl=r.dc+(r.after-sc[s.key]);apply(s,g,d1,p1,d2,p2);
+   const r=apply(s,g,d1,p1,d2,p2),dl=r.dc+(r.after-sc[s.key])+r.ds;apply(s,g,d1,p1,d2,p2);
    if(dl<bd){bd=dl;bb=b}}
   if(!bb)continue;
   if(bd<=0||Math.random()<Math.exp(-bd/T))sc[s.key]=apply(s,g,d1,p1,bb[0],bb[1]).after}};
@@ -336,28 +342,29 @@ function analyze(snap,miss){
  return {lines,bad};
 }
 async function solve(tl){
- const t0=Date.now();let best=null,k=0,done=false,Bz=null;
- const over=()=>STOP||Date.now()-t0>tl*1000;
+ const t0=Date.now();let best=null,k=0,done=false,Bz=null,tImp=Date.now();
+ const over=()=>STOP||Date.now()-t0>tl*1000||Date.now()-tImp>90000;
  const tick=async m=>{$('status').textContent=m;await new Promise(r=>setTimeout(r,0))};
  while(!done){
   const B=build();k++;
   for(let round=0;round<2&&!done;round++){const IT=120000,CH=10000;
    for(let c=0;c<IT/CH;c++){
     B.refresh();B.step(CH,Math.max(.05,.45-.4*(c/(IT/CH))));
-    const h=B.hard();if(!best||h<best.h)best={h,snap:B.snap(),miss:B.miss};
+    const h=B.hard();if(!best||h<best.h){best={h,snap:B.snap(),miss:B.miss};tImp=Date.now()}
     if(h===0){done=true;Bz=B;break}
     if(over()){done=true;break}
     if(c%2===0)await tick('Solving: attempt '+k+', conflicts left '+best.h+', '+Math.round((Date.now()-t0)/1000)+'s')}}
   if(over())done=true}
- if(Bz&&!STOP){for(let c=0;c<12&&Date.now()-t0<tl*1000+15000;c++){Bz.refresh();Bz.step(10000,.003);if(c%3===0)await tick('Polishing the free periods…')}
+ if(Bz&&!STOP){const tp=Date.now(),cap=Math.max(20000,tl*400);for(let c=0;c<80&&!STOP&&Date.now()-tp<cap;c++){Bz.refresh();Bz.step(10000,.004,true);if(c%3===0)await tick('Polishing teacher workload and free periods…')}
   if(Bz.hard()===0)best={h:0,snap:Bz.snap(),miss:Bz.miss}}
  $('status').textContent='Finished in '+Math.round((Date.now()-t0)/1000)+'s';
  return best;
 }
+let RUNNING=false;
 async function generate(){
- STOP=false;compile();PREP=prepare();$('stop').style.display='';$('gen').disabled=true;
- const best=await solve(S.tl||120);
- $('stop').style.display='none';$('gen').disabled=false;
+ if(RUNNING)return;RUNNING=true;STOP=false;compile();PREP=prepare();$('stop').style.display='';$('gen').disabled=true;
+ const best=await solve(S.tl||180);
+ $('stop').style.display='none';$('gen').disabled=false;RUNNING=false;
  const an=analyze(best.snap,best.miss),grid={};
  SECS.forEach((s,si)=>grid[s.key]=best.snap[si].map(row=>row.map((c,p)=>c.free?{free:true}:c.block?Object.assign({},c):{subj:c.subj,teacher:c.teacher,i:c.i,ct:p===0&&!!s.ct&&c.teacher===s.ct,bad:an.bad.has(c)})));
  RES={grid,un:an.lines.length,miss:an.lines};
@@ -395,7 +402,7 @@ function renderSettings(){
  const subs=ALLSUBJ.slice();
  const tch=[...ALLT].sort();
  const sel=(a,v,h)=>'<select onchange="'+h+'">'+a+'</select>';
- let h='<div id="pre"></div><details style="margin:10px 0"><summary style="cursor:pointer;font-weight:700">Class teachers (a preference: they get Period 1 when possible)</summary><div class="row2" id="ctSel" style="margin-top:10px"></div></details><div class="title">Structure</div><div class="row">Lunch after period <input type="number" min="1" max="8" value="'+S.L+'" style="width:64px" onchange="S.L=+this.value"> <label>Solver time limit (seconds) <input type="number" min="10" max="600" value="'+(S.tl||120)+'" style="width:72px" onchange="S.tl=+this.value"></label>'
+ let h='<details style="margin:10px 0"><summary style="cursor:pointer;font-weight:700">Class teachers (a preference: they get Period 1 when possible)</summary><div class="row2" id="ctSel" style="margin-top:10px"></div></details><div class="title">Structure</div><div class="row">Lunch after period <input type="number" min="1" max="8" value="'+S.L+'" style="width:64px" onchange="S.L=+this.value">'
   +cl.map(c=>'<label>Class '+lab(c)+' periods/day <input type="number" min="1" max="10" style="width:64px" value="'+(S.ppd[c]??(c<=2?7:8))+'" onchange="S.ppd['+c+']=+this.value"></label>').join('')+'</div>';
  h+='<div class="title" style="margin-top:14px">Parallel blocks <span style="font-size:13px;color:var(--mute);font-weight:600">(subjects that run at the same time)</span></div>';
  S.blocks.forEach((b,i)=>{
@@ -406,17 +413,28 @@ function renderSettings(){
  h+='<button onclick="S.blocks.push({name:\'\',n:1,secs:[],tracks:[{subj:\'\',teacher:\'\',secs:\'\'},{subj:\'\',teacher:\'\',secs:\'\'}]});renderSettings()">+ Add block</button>';
  h+='<div class="title" style="margin-top:14px">Subject rules</div>'+S.subjRules.map((r,i)=>'<div class="row"><select onchange="S.subjRules['+i+'].subj=this.value">'+opt(subs,r.subj,'Subject')+'</select><select onchange="S.subjRules['+i+'].rule=this.value"><option value="am"'+(r.rule==='am'?' selected':'')+'>Morning only</option><option value="pm"'+(r.rule==='pm'?' selected':'')+'>Afternoon only</option><option value="no1"'+(r.rule==='no1'?' selected':'')+'>Not Period 1</option><option value="first"'+(r.rule==='first'?' selected':'')+'>First period only</option><option value="last"'+(r.rule==='last'?' selected':'')+'>Last period only</option></select><button aria-label="Remove rule" onclick="S.subjRules.splice('+i+',1);renderSettings()">✕</button></div>').join('')
   +'<button onclick="S.subjRules.push({subj:\'\',rule:\'am\'});renderSettings()">+ Subject rule</button>';
- h+='<div class="title" style="margin-top:14px">Teacher unavailable</div>'+S.tun.map((u,i)=>'<div class="row"><select onchange="S.tun['+i+'].t=this.value">'+opt(tch,u.t,'Teacher')+'</select><select onchange="S.tun['+i+'].day=+this.value"><option value="-1">Every day</option>'+DAYS.map((d,k)=>'<option value="'+k+'"'+(u.day===k?' selected':'')+'>'+d+'</option>').join('')+'</select>periods <input type="number" min="1" max="10" style="width:64px" value="'+u.from+'" onchange="S.tun['+i+'].from=+this.value"> to <input type="number" min="1" max="10" style="width:64px" value="'+u.to+'" onchange="S.tun['+i+'].to=+this.value"><button aria-label="Remove" onclick="S.tun.splice('+i+',1);renderSettings()">✕</button></div>').join('')
-  +'<button onclick="S.tun.push({t:\'\',day:-1,from:1,to:8});renderSettings()">+ Unavailable slot</button>';
+ h+='<div class="title" style="margin-top:14px">Teacher available <span style="font-size:13px;color:var(--mute);font-weight:600">(only in these slots; a teacher with no rows is available all the time)</span></div>'+S.tun.map((u,i)=>'<div class="row"><select onchange="S.tun['+i+'].t=this.value">'+opt(tch,u.t,'Teacher')+'</select><select onchange="S.tun['+i+'].day=+this.value"><option value="-1">Every day</option>'+DAYS.map((d,k)=>'<option value="'+k+'"'+(u.day===k?' selected':'')+'>'+d+'</option>').join('')+'</select>periods <input type="number" min="1" max="10" style="width:64px" value="'+u.from+'" onchange="S.tun['+i+'].from=+this.value"> to <input type="number" min="1" max="10" style="width:64px" value="'+u.to+'" onchange="S.tun['+i+'].to=+this.value"><button aria-label="Remove" onclick="S.tun.splice('+i+',1);renderSettings()">✕</button></div>').join('')
+  +'<button onclick="S.tun.push({t:\'\',day:-1,from:1,to:8});renderSettings()">+ Available slot</button>';
  const P=profiles();
- h+='<div class="title" style="margin-top:14px">School profile</div><div class="row"><input id="pname" placeholder="Profile name"><button onclick="saveProf()">Save</button><select id="plist"><option value="">Saved profiles</option>'+opt(Object.keys(P))+'</select><button onclick="loadProf($(\'plist\').value)">Load</button></div><div class="row" style="margin-top:8px"><textarea id="ptxt" rows="2" style="flex:1;min-width:220px" placeholder="Export text appears here; paste a saved export to restore"></textarea><button onclick="expo()">Export</button><button onclick="impo()">Import</button></div><p style="color:var(--mute);font-size:13px;margin:8px 0 0">After changing settings, press “Generate timetables” at the top.</p>';
- $('setBody').innerHTML=h;renderCT();precheck();
+ h+='<div class="title" style="margin-top:14px">School profile</div><div class="row"><input id="pname" placeholder="Profile name"><button onclick="saveProf()">Save</button><select id="plist"><option value="">Saved profiles</option>'+opt(Object.keys(P))+'</select><button onclick="loadProf($(\'plist\').value)">Load</button></div><div class="row" style="margin-top:8px"><textarea id="ptxt" rows="2" style="flex:1;min-width:220px" placeholder="Export text appears here; paste a saved export to restore"></textarea><button onclick="expo()">Export</button><button onclick="impo()">Import</button></div><p style="color:var(--mute);font-size:13px;margin:8px 0 0">After changing settings, press “Check settings” below, then “Generate timetables”.</p>';
+ h+='<details style="margin-top:14px"><summary style="cursor:pointer;font-weight:700">Advanced settings</summary><div class="row" style="margin-top:10px"><label>Solver time limit (seconds) <input type="number" min="10" max="600" value="'+(S.tl||180)+'" style="width:72px" onchange="S.tl=+this.value"></label> <label>Teacher max periods in a row, 0 = off <input type="number" min="0" max="8" value="'+S.run+'" style="width:64px" onchange="S.run=+this.value"></label> <label class="chip"><input type="checkbox" '+(S.even?'checked':'')+' onchange="S.even=this.checked"> Even teacher workload across days</label></div></details>';
+ h+='<div class="title" style="margin-top:16px">Check settings</div><div class="row"><button onclick="precheck()">Check settings</button><button class="pri" onclick="generate()">Generate timetables</button></div><div id="pre"></div>';
+ $('setBody').innerHTML=h;renderCT();
 }
 function profiles(){try{return JSON.parse(localStorage.getItem('tt_profiles')||'{}')}catch(e){return {}}}
 function saveProf(){const n=$('pname').value.trim();if(!n)return;try{const p=profiles();p[n]=S;localStorage.setItem('tt_profiles',JSON.stringify(p))}catch(e){}renderSettings()}
-function loadProf(n){const p=profiles()[n];if(p){S=Object.assign(defS(),p);applyCT();renderSettings()}}
+function convTun(old){
+ const by={},out=[];old.forEach(u=>{if(u.t)(by[u.t]=by[u.t]||[]).push(u)});
+ const rg=a=>{const r=[];a.forEach(p=>{if(r.length&&r[r.length-1][1]===p-1)r[r.length-1][1]=p;else r.push([p,p])});return r};
+ Object.keys(by).forEach(t=>{let mx=8;SECS.forEach(s=>{if(s.lessons.some(l=>l.teacher===t))mx=Math.max(mx,ppdOf(s))});
+  const pd=[];for(let d=0;d<5;d++){const bl=new Set();by[t].forEach(u=>{if(u.day<0||u.day===d)for(let p=u.from;p<=u.to;p++)bl.add(p)});const ok=[];for(let p=1;p<=mx;p++)if(!bl.has(p))ok.push(p);pd.push(ok)}
+  if(pd.every(a=>a.join()===pd[0].join()))rg(pd[0]).forEach(([f,to])=>out.push({t,day:-1,from:f,to}));
+  else pd.forEach((a,d)=>rg(a).forEach(([f,to])=>out.push({t,day:d,from:f,to})))});
+ return out}
+function setProfile(p){S=Object.assign(defS(),p);if(!p.v)S.tun=convTun(p.tun||[]);S.v=2;applyCT();renderSettings()}
+function loadProf(n){const p=profiles()[n];if(p)setProfile(p)}
 function expo(){$('ptxt').value=JSON.stringify(S)}
-function impo(){try{S=Object.assign(defS(),JSON.parse($('ptxt').value));applyCT();renderSettings()}catch(e){$('ptxt').value='That text is not a valid settings export.'}}
+function impo(){try{setProfile(JSON.parse($('ptxt').value))}catch(e){$('ptxt').value='That text is not a valid settings export.'}}
 
 const NPMAX=()=>Math.max(...SECS.map(s=>s.np));
 function masterRows(k){
@@ -456,7 +474,9 @@ function render(){
  }else{
   Object.keys(RES.tt).sort().filter(t=>sel==='*'||t===sel).forEach(t=>{
    const n=RES.tt[t].reduce((a,r)=>a+r.filter(Boolean).length,0);
-   h+=table(RES.tt[t],true,t,n+' periods a week');});
+   const days=RES.tt[t].map(r=>r.filter(Boolean).length);let mr=0;RES.tt[t].forEach(r=>{let run=0;r.forEach((c,p)=>{if(p===S.L)run=0;if(c){run++;mr=Math.max(mr,run)}else run=0})});
+   const lo=Math.floor(n/5),hi=Math.ceil(n/5),off=(S.even&&days.some(x=>x<lo||x>hi))||(S.run>0&&mr>S.run);
+   h+=table(RES.tt[t],true,t,n+' periods a week · per day '+days.join(', ')+' · longest run '+mr+(off?' · outside preference':''));});
  }
  $('views').innerHTML=h;
 }
